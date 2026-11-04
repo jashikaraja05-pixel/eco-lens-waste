@@ -275,7 +275,7 @@ function AuthScreen() {
     <div className="bg-auth min-h-dvh">
       <div className="pt-safe mx-auto grid w-full max-w-6xl items-center gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[1.15fr_1fr] lg:gap-12 lg:px-10">
         <Intro />
-        <div className="fade-up w-full max-w-md justify-self-center rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8 lg:justify-self-end">
+        <div id="auth-card" className="fade-up w-full max-w-md scroll-mt-4 justify-self-center rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8 lg:justify-self-end">
           <div className="mb-6 flex justify-center"><Brand tagline /></div>
           <div className="grid grid-cols-2 rounded-xl bg-muted p-1" role="tablist" aria-label="Authentication mode">
             {(["login", "signup"] as const).map((m) => (
@@ -332,6 +332,7 @@ function Intro() {
   return (
     <section aria-labelledby="intro-title" className="fade-up min-w-0">
       <Brand />
+      <a href="#auth-card" className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground lg:hidden">Log in or sign up <ArrowRight className="size-4" /></a>
       <h1 id="intro-title" className="font-display mt-6 text-4xl font-bold tracking-tight sm:text-5xl">ECO-LENSAI</h1>
       <p className="mt-2 text-lg font-medium text-primary sm:text-xl">AI-Powered Smart Waste Segregation System</p>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -701,7 +702,7 @@ function Dashboard({ history }: { history: Scan[] }) {
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-3 sm:gap-4">
         <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Active days</p><p className="mt-1 text-2xl font-bold">{days}</p><p className="text-xs text-muted-foreground">Days you scanned at least once</p></div>
-        <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Avg. confidence</p><p className="mt-1 text-2xl font-bold">{s.total - s.uncertain ? `${s.avgConfidence}%` : "—"}</p><p className="text-xs text-muted-foreground">Confident results only</p></div>
+        <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Avg. AI confidence</p><p className="mt-1 text-2xl font-bold">{s.total - s.uncertain ? `${s.avgConfidence}%` : "—"}</p><p className="text-xs text-muted-foreground">Confident results only</p></div>
         <div className="glass rounded-3xl p-5"><p className="flex items-center gap-1.5 text-sm text-muted-foreground"><ShieldCheck className="size-4" /> Pilot accuracy</p><p className="mt-1 text-2xl font-bold">{s.pilotAccuracy === null ? "—" : `${s.pilotAccuracy}%`}</p><p className="text-xs text-muted-foreground">{s.verified ? `${s.verifiedCorrect} of ${s.verified} scans you checked were right` : "Open a scan in History and mark the real category"}</p></div>
       </div>
     </section>
