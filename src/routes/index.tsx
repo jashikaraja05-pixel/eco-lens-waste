@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import authIllustration from "@/assets/auth-illustration.jpg";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Leaf, LogOut, ScanLine, LayoutDashboard, History, BookOpen, Upload, Camera, RotateCcw,
@@ -275,8 +276,13 @@ function AuthScreen() {
     <div className="bg-auth min-h-dvh">
       <div className="pt-safe mx-auto grid w-full max-w-6xl items-center gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[1.15fr_1fr] lg:gap-12 lg:px-10">
         <Intro />
-        <div id="auth-card" className="fade-up w-full max-w-md scroll-mt-4 justify-self-center rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8 lg:justify-self-end">
-          <div className="mb-6 flex justify-center"><Brand tagline /></div>
+        <div className="flex w-full min-w-0 flex-col items-center gap-5 lg:items-end">
+        <img src={authIllustration} alt="Phone scanning a plastic bottle beside green, blue, red and black waste bins" width={1024} height={768} className="fade-up w-full max-w-md rounded-3xl border border-border object-cover shadow-lg" />
+        <div id="auth-card" className="fade-up w-full max-w-md scroll-mt-4 rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8">
+          <div className="mb-6 flex items-center justify-center gap-2.5">
+            <span className="bg-ocean glow grid size-9 shrink-0 place-items-center rounded-xl text-primary-foreground"><Leaf className="size-5" /></span>
+            <div className="leading-tight"><span className="font-display block text-lg font-bold">ECO-LENSAI</span><span className="block text-xs text-muted-foreground">Scan. Sort. Save.</span></div>
+          </div>
           <div className="grid grid-cols-2 rounded-xl bg-muted p-1" role="tablist" aria-label="Authentication mode">
             {(["login", "signup"] as const).map((m) => (
               <button key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => { setMode(m); setError(null); setInfo(null); }}
@@ -314,6 +320,7 @@ function AuthScreen() {
             </Button>
           </form>
           <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="size-3.5" /> Your scans are private to your account.</p>
+        </div>
         </div>
       </div>
     </div>
