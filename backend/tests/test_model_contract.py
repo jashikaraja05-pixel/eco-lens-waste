@@ -72,3 +72,10 @@ def test_load_model_missing_weights_raises(tmp_path):
     (tmp_path / "config.json").write_text(json.dumps({"num_classes": 3}))
     with pytest.raises(FileNotFoundError):
         load_model(tmp_path)
+
+
+def test_glass_warning_only_for_glass_items():
+    from common import safety_for
+    assert safety_for("recyclable", "Clear plastic water bottle") == []
+    assert safety_for("recyclable", "Glass jar") == ["Broken glass: wrap it in paper and label it before binning."]
+    assert len(safety_for("hazardous", "AA battery")) == 2

@@ -151,7 +151,7 @@ def predict_gateway(image_bytes: bytes, mime: str) -> dict:
         category = "uncertain"
     return {"item": item, "category": category, "confidence": confidence,
             "reasoning": reasoning, "steps": steps or DISPOSAL_STEPS[category],
-            "bin": BINS[category], "warnings": safety_for(category, p["item"]),
+            "bin": BINS[category], "warnings": safety_for(category, item),
             "engine": engine_name()}
 
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizePrediction, recommendedBins, UNCERTAIN_THRESHOLD, imageSchema } from "@/lib/scan-schema";
+import { normalizePrediction, recommendedBins, UNCERTAIN_THRESHOLD, imageSchema, safetyFor } from "@/lib/scan-schema";
 import { pilot, rowToScan, stats, type Scan } from "@/lib/eco-store";
 
 const base = { item: "Bottle", reasoning: "PET bottle.", steps: ["Rinse"] };
@@ -68,5 +68,17 @@ describe("python classifier auth", () => {
       await viaPython("https://py.example", "data:image/png;base64,iVBORw0KGgo=", "k123");
     } finally { globalThis.fetch = orig; }
     expect(sent?.get("X-Classifier-Key")).toBe("k123");
+  });
+});
+
+describe("safety warnings", () => {
+  it("does not show the broken-glass warning for a plastic bottle", () => {
+    expect(safetyFor("recyclable", "Clear plastic water bottle with cap")).toEqual([]);
+  });
+  it("shows the broken-glass warning for glass items", () => {
+    expect(safetyFor("recyclable", "Broken glass jar")).toEqual(["Broken glass: wrap it in paper and label it before binning."]);
+  });
+  it("keeps both hazardous safety notes", () => {
+    expect(safetyFor("hazardous", "AA battery")).toHaveLength(2);
   });
 });
