@@ -10,5 +10,5 @@
 <!-- LOVABLE:END -->
 - Accounts use Lovable Cloud auth and scans live in the `scans` table with owner-only RLS; never store credentials or history in browser storage.
 - Classification runs only in the authenticated `classifyWaste` server function, which also saves the row, so clients cannot forge results.
-- Bin text, per-result safety notes (`safetyFor`) and the uncertainty threshold are owned by scan-schema.ts; backend/common.py mirrors the same rules and is used when `PYTHON_CLASSIFIER_URL` is set.
+- Bin text, per-result safety notes (`safetyFor`) and the uncertainty threshold are owned by scan-schema.ts; the Python service in `backend/` mirrors them in common.py and is used when `PYTHON_CLASSIFIER_URL` is set.
 - Keep the React interface in one route file.
