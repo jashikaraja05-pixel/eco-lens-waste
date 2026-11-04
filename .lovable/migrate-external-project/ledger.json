@@ -1,12 +1,13 @@
 [
- {"capability":"code/ui (EcoLens AI, Oceanic Teal theme)","source":"code archive eco-main_1.zip (TanStack Start)","outcome":"migrate","status":"in_progress","next_action":"copy source, install deps, verify build/tests"},
- {"capability":"schema (public.scans + owner-only RLS + pilot verification columns)","source":"drizzle migrations 0000-0002","outcome":"migrate","status":"pending","next_action":"apply as Lovable Cloud migration"},
- {"capability":"records (scan history)","source":"old Lovable Cloud project vrdclszuilszmfyewccd (not in archive)","outcome":"migrate","status":"pending","next_action":"request CSV/JSON export of scans"},
- {"capability":"auth identities","source":"old project auth (not in archive)","outcome":"migrate","status":"pending","next_action":"request user export (emails + original IDs); users verify email and set new password on first visit"},
- {"capability":"authorization (owner-only RLS)","source":"migrations","outcome":"migrate","status":"pending","next_action":"apply and verify"},
- {"capability":"AI classification (classifyWaste)","source":"Lovable AI Gateway","outcome":"migrate","status":"pending","next_action":"verify LOVABLE_API_KEY and a live scan"},
- {"capability":"account deletion (deleteMyAccount)","source":"server function with admin client","outcome":"migrate","status":"pending","next_action":"verify"},
- {"capability":"Python FastAPI classifier (backend/)","source":"archive backend/, optional PYTHON_CLASSIFIER_URL","outcome":"preserve","status":"code preserved; not deployed","next_action":"user trains/deploys backend and sets PYTHON_CLASSIFIER_URL (optional)"},
- {"capability":"secrets","source":".env excluded from import","outcome":"migrate","status":"LOVABLE_API_KEY provided by Cloud; PYTHON_CLASSIFIER_* optional","next_action":null},
+ {"capability":"code/ui (EcoLens AI, Oceanic Teal theme)","source":"code archive eco-main_1.zip","outcome":"migrate","status":"verified: build OK, 13/13 tests, sign-in + scan screens render","next_action":null},
+ {"capability":"schema (public.scans + pilot verification columns)","source":"drizzle migrations 0000-0002","outcome":"migrate","status":"verified: applied to Lovable Cloud","next_action":null},
+ {"capability":"authorization (owner-only RLS, column-limited updates)","source":"migrations","outcome":"migrate","status":"verified: second user saw 0 rows and could not update","next_action":null},
+ {"capability":"email/password accounts","source":"Lovable Cloud auth, email confirmation on","outcome":"migrate","status":"verified: sign-in with confirmed account works","next_action":null},
+ {"capability":"AI classification + save to history","source":"Lovable AI Gateway","outcome":"migrate","status":"verified: live bottle scan returned Recyclable/Blue Bin and saved","next_action":null},
+ {"capability":"account deletion","source":"deleteMyAccount server function","outcome":"migrate","status":"code migrated; not exercised in UI","next_action":null},
+ {"capability":"records (scan history)","source":"old Lovable Cloud project (not in archive)","outcome":"migrate","status":"pending","next_action":"request CSV/JSON export of scans"},
+ {"capability":"auth identities","source":"old project users (not in archive)","outcome":"migrate","status":"pending","next_action":"request user export (emails + original IDs); first-login email verification + new password"},
+ {"capability":"Python FastAPI classifier (backend/)","source":"archive backend/","outcome":"preserve","status":"code preserved; not trained or deployed","next_action":"optional: train/deploy and set PYTHON_CLASSIFIER_URL"},
+ {"capability":"secrets","source":".env excluded","outcome":"migrate","status":"LOVABLE_API_KEY managed by Cloud","next_action":null},
  {"capability":"cutover","source":"old project URL","outcome":"migrate","status":"pending","next_action":"publish this project"}
 ]
