@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import authIllustration from "@/assets/auth-illustration.jpg";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Leaf, LogOut, ScanLine, LayoutDashboard, History, BookOpen, Upload, Camera, RotateCcw,
@@ -274,10 +273,8 @@ function AuthScreen() {
 
   return (
     <div className="bg-auth min-h-dvh">
-      <div className="pt-safe mx-auto grid w-full max-w-6xl items-center gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[1.15fr_1fr] lg:gap-12 lg:px-10">
-        <Intro />
-        <div className="flex w-full min-w-0 flex-col items-center gap-5 lg:items-end">
-        <img src={authIllustration} alt="Phone scanning a plastic bottle beside green, blue, red and black waste bins" width={1024} height={768} className="fade-up w-full max-w-md rounded-3xl border border-border object-cover shadow-lg" />
+      <div className="pt-safe flex min-h-dvh w-full items-center justify-center px-4 py-10 sm:px-6">
+        <div className="flex w-full min-w-0 flex-col items-center">
         <div id="auth-card" className="fade-up w-full max-w-md scroll-mt-4 rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8">
           <div className="mb-6 flex items-center justify-center gap-2.5">
             <span className="bg-ocean glow grid size-9 shrink-0 place-items-center rounded-xl text-primary-foreground"><Leaf className="size-5" /></span>
@@ -324,45 +321,6 @@ function AuthScreen() {
         </div>
       </div>
     </div>
-  );
-}
-
-const HOW_IT_WORKS = [
-  { icon: Upload, text: "Upload or capture a photo of one waste item" },
-  { icon: Sparkles, text: "Tap Analyze — the AI reads the image" },
-  { icon: Recycle, text: "See the category and the right bin" },
-  { icon: CheckCircle2, text: "Follow the disposal and safety steps" },
-  { icon: History, text: "Review past scans on your dashboard and history" },
-];
-
-function Intro() {
-  return (
-    <section aria-labelledby="intro-title" className="fade-up min-w-0">
-      <Brand />
-      <a href="#auth-card" className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground lg:hidden">Log in or sign up <ArrowRight className="size-4" /></a>
-      <h1 id="intro-title" className="font-display mt-6 text-4xl font-bold tracking-tight sm:text-5xl">ECO-LENSAI</h1>
-      <p className="mt-2 text-lg font-medium text-primary sm:text-xl">AI-Powered Smart Waste Segregation System</p>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        <div className="glass rounded-2xl p-4">
-          <p className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="size-4 text-destructive" /> Problem</p>
-          <p className="mt-1 text-sm text-muted-foreground">Incorrect waste segregation causes environmental pollution and reduces recycling efficiency.</p>
-        </div>
-        <div className="glass rounded-2xl p-4">
-          <p className="flex items-center gap-2 text-sm font-semibold"><Leaf className="size-4 text-primary" /> Solution</p>
-          <p className="mt-1 text-sm text-muted-foreground">ECO-LENSAI uses AI-assisted image classification to help you identify waste and follow the right disposal method.</p>
-        </div>
-      </div>
-      <p className="mt-6 text-sm font-semibold">How it works</p>
-      <ol className="mt-2 grid gap-2">
-        {HOW_IT_WORKS.map(({ icon: Icon, text }, i) => (
-          <li key={text} className="flex items-center gap-3 rounded-xl bg-card/80 px-3 py-2.5 text-sm shadow-sm">
-            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{i + 1}</span>
-            <Icon className="size-4 shrink-0 text-primary" aria-hidden="true" />{text}
-          </li>
-        ))}
-      </ol>
-      <p className="mt-4 text-xs text-muted-foreground">Five categories: Organic · Recyclable · Hazardous · E-waste · Residual. Low-confidence results are shown as Uncertain instead of guessing.</p>
-    </section>
   );
 }
 
