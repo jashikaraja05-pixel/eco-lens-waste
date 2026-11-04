@@ -45,6 +45,15 @@ export const safetyWarnings: Record<StoredCategory, string[]> = {
   uncertain: ["Bin colours differ between cities — confirm with your municipal corporation's guide."],
 };
 
+/** Glass-only warnings, shown only when the detected item is glass. Mirrors safety_for in backend/common.py. */
+const GLASS_ONLY = new Set(["Broken glass: wrap it in paper and label it before binning."]);
+
+/** Safety notes for one result: category notes, minus glass-only notes for non-glass items. */
+export function safetyFor(category: StoredCategory, item: string): string[] {
+  const isGlass = /\bglass\b/i.test(item);
+  return safetyWarnings[category].filter((w) => isGlass || !GLASS_ONLY.has(w));
+}
+
 /** Reuse / recycling ideas per category (static guidance, not model output). */
 export const reuseTips: Record<StoredCategory, string> = {
   organic: "Compost at home (a pot composter works in flats) or give to your society's composting unit.",

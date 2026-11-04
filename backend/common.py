@@ -77,6 +77,17 @@ SAFETY_WARNINGS = {
 }
 
 
+GLASS_ONLY = {"Broken glass: wrap it in paper and label it before binning."}
+
+
+def safety_for(category: str, item: str) -> list[str]:
+    """Category safety notes; glass-only notes are kept only for glass items.
+    Mirrors safetyFor in src/lib/scan-schema.ts."""
+    import re
+    is_glass = bool(re.search(r"\bglass\b", item or "", re.IGNORECASE))
+    return [w for w in SAFETY_WARNINGS.get(category, []) if is_glass or w not in GLASS_ONLY]
+
+
 def sniff(data: bytes) -> str | None:
     """Magic-byte content check: returns the real image MIME type or None."""
     if data.startswith(b"\xff\xd8\xff"):
