@@ -20,16 +20,16 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { classifyWaste, deleteMyAccount } from "@/lib/classify.functions";
-import { reuseTips, safetyWarnings, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
+import { reuseTips, safetyFor, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
 import { BINS, rowToScan, stats, type Scan, type ScanRow, type VerifiedCategory } from "@/lib/eco-store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "EcoLens AI — Scan. Sort. Save." },
-      { name: "description", content: "Scan any waste item with AI and learn exactly which bin it belongs in." },
-      { property: "og:title", content: "EcoLens AI — Scan. Sort. Save." },
-      { property: "og:description", content: "Scan any waste item with AI and learn exactly which bin it belongs in." },
+      { title: "ECO-LENSAI — AI-Powered Smart Waste Segregation" },
+      { name: "description", content: "Photograph a waste item, get its category, the right bin and safe disposal steps. Private scan history and dashboard." },
+      { property: "og:title", content: "ECO-LENSAI — AI-Powered Smart Waste Segregation" },
+      { property: "og:description", content: "Photograph a waste item, get its category, the right bin and safe disposal steps. Private scan history and dashboard." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -338,6 +338,7 @@ function shrink(src: string, max = 768): Promise<string> {
   });
 }
 
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const STAGES = ["Uploading image", "Detecting the item", "Matching segregation rules"];
 
 function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
@@ -407,7 +408,8 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
 
   const onFile = (f?: File) => {
     if (!f || analyzingRef.current) return;
-    if (!f.type.startsWith("image/")) { toast.error("Please choose an image file."); return; }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) { toast.error("Please choose a JPG, PNG or WebP image."); return; }
+    if (f.size > MAX_UPLOAD_BYTES) { toast.error("That image is over 15 MB. Please choose a smaller photo."); return; }
     const operation = ++operationRef.current;
     setImage(null); setResult(null); setFailure(null);
     const r = new FileReader();
@@ -483,7 +485,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
                 <span className={`grid size-16 place-items-center rounded-2xl transition-all ${drag ? "bg-primary text-primary-foreground" : "bg-card text-primary shadow-sm group-hover:scale-105"}`}><ImagePlus className="size-8" /></span>
                 <span className="font-semibold">{drag ? "Drop to upload" : "Tap to choose a photo"}</span>
                 <span className="hidden text-sm text-muted-foreground sm:block">or drag and drop an image here</span>
-                <span className="text-xs text-muted-foreground">JPG, PNG or WEBP · one item per photo works best</span>
+                <span className="text-xs text-muted-foreground">JPG, PNG or WebP up to 15 MB · one item per photo works best</span>
               </button>
             ) : (
               <button type="button" onClick={startCam} className="group flex size-full flex-col items-center justify-center gap-3 p-4 text-center">
@@ -508,7 +510,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
               </div>
             )}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
             {mode === "camera" && camOn && !image && (
@@ -572,6 +574,8 @@ function ResultCard({ r }: { r: ScanResult }) {
   const unsure = r.category === "uncertain";
   const b = BINS[r.category];
   const Icon = CAT_ICON[r.category];
+  const warnings = safetyFor(r.category, r.item);
+  const confLabel = r.source === "python" ? "Model confidence" : "AI-estimated confidence";
   return (
     <div className={`fade-up overflow-hidden rounded-3xl border bg-card shadow-sm ${unsure ? "border-warning" : "border-border"}`}>
       <div className={`${unsure ? "bg-warning-soft text-warning-foreground" : `${b.tone} text-primary-foreground`} flex items-center gap-4 p-5 sm:p-6`}>
@@ -587,16 +591,17 @@ function ResultCard({ r }: { r: ScanResult }) {
         <h2 className="mt-1 text-xl font-bold sm:text-2xl">{r.item}</h2>
         <p className="mt-1 text-sm font-medium text-primary">{r.bin}</p>
         {unsure && <p role="status" className="mt-3 flex gap-2 rounded-xl border border-warning/50 bg-warning-soft p-3 text-sm text-warning-foreground"><HelpCircle className="mt-0.5 size-4 shrink-0" /> The model isn't confident enough to recommend a bin. Retake the photo with one item in clear light.</p>}
-        {safetyWarnings[r.category].length > 0 && (
+        {warnings.length > 0 && (
           <div role={r.category === "hazardous" || r.category === "ewaste" ? "alert" : "note"} className={`mt-3 space-y-1.5 rounded-xl border p-3 text-sm ${r.category === "hazardous" || r.category === "ewaste" ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-border bg-muted text-muted-foreground"}`}>
-            {safetyWarnings[r.category].map((w) => <p key={w} className="flex gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{w}</p>)}
+            {warnings.map((w) => <p key={w} className="flex gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{w}</p>)}
           </div>
         )}
         <div className="mt-5">
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Model confidence</span><span className="font-semibold">{r.confidence}%</span></div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={r.confidence} aria-valuemin={0} aria-valuemax={100} aria-label="Model confidence">
+          <div className="flex justify-between text-sm"><span className="text-muted-foreground">{confLabel}</span><span className="font-semibold">{r.confidence}%</span></div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={r.confidence} aria-valuemin={0} aria-valuemax={100} aria-label={confLabel}>
             <div className={`${unsure ? "bg-warning" : "bg-ocean"} h-full rounded-full transition-all duration-700`} style={{ width: `${r.confidence}%` }} />
           </div>
+          {r.source !== "python" && <p className="mt-1.5 text-xs text-muted-foreground">Reported by the vision AI itself — not a measured accuracy.</p>}
         </div>
         <div className="mt-5 rounded-2xl bg-secondary p-4 text-sm"><p className="mb-1 font-semibold">Why this bin?</p><p className="text-secondary-foreground">{r.reasoning}</p></div>
         <p className="mt-5 font-semibold">Disposal guidance</p>
@@ -606,7 +611,7 @@ function ResultCard({ r }: { r: ScanResult }) {
           ))}
         </ol>
         <div className="mt-5 rounded-2xl border border-border p-4 text-sm"><p className="mb-1 flex items-center gap-1.5 font-semibold"><Recycle className="size-4 text-primary" /> Reuse &amp; recycling</p><p className="text-muted-foreground">{reuseTips[r.category]}</p></div>
-        <p className="mt-5 flex items-center gap-1.5 border-t border-border pt-4 text-xs text-muted-foreground"><Server className="size-3.5" /> Engine: {r.source === "python" ? "Python FastAPI service" : "Built-in vision AI"} · <CheckCircle2 className="size-3.5 text-primary" /> Saved to history</p>
+        <p className="mt-5 flex items-center gap-1.5 border-t border-border pt-4 text-xs text-muted-foreground"><Server className="size-3.5" /> Engine: {r.source === "python" ? "Python FastAPI service" : "Built-in vision AI (Lovable AI Gateway)"} · <CheckCircle2 className="size-3.5 text-primary" /> Saved to history</p>
       </div>
     </div>
   );
