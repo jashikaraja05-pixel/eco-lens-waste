@@ -875,6 +875,36 @@ function Learn() {
           </div>
         </article>
       </div>
+
+      <h2 className="mt-10 text-xl font-bold sm:text-2xl">Quick guides</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Short, practical habits that make segregation work.</p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {GUIDES.map(({ icon: Icon, title, points }) => (
+          <article key={title} className="glass min-w-0 rounded-2xl p-5">
+            <p className="flex items-center gap-2 font-semibold"><span className="grid size-9 place-items-center rounded-xl bg-secondary text-primary"><Icon className="size-5" /></span>{title}</p>
+            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+              {points.map((t) => <li key={t} className="flex gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />{t}</li>)}
+            </ul>
+          </article>
+        ))}
+      </div>
+
+      <div className="mt-8 rounded-2xl border border-border bg-card p-5 text-sm">
+        <p className="flex items-center gap-2 font-semibold"><Server className="size-4 text-primary" /> What the scanner can recognise</p>
+        <ul className="mt-2 space-y-1.5 text-muted-foreground">
+          <li><strong className="text-foreground">Built-in vision AI (active now):</strong> a general vision model sorts any photo into the five categories. Its confidence is self-reported, so treat results as guidance and check local rules.</li>
+          <li><strong className="text-foreground">Local trained model (optional, not deployed yet):</strong> with the default TrashNet dataset it only covers recyclable and residual items. With the 12-class dataset, "hazardous" means batteries only — it does not detect chemicals, medicines or aerosols.</li>
+        </ul>
+      </div>
     </section>
   );
 }
+
+const GUIDES = [
+  { icon: Recycle, title: "Segregation basics", points: ["Keep at least two bins at home: wet (green) and dry (blue).", "Store hazardous and e-waste separately until a collection drive.", "Never mix wet waste into dry recyclables — it spoils them."] },
+  { icon: Recycle, title: "Recycling guidelines", points: ["Rinse and dry bottles, cans and jars.", "Flatten cardboard and keep paper dry.", "Food-soiled paper and multi-layer wrappers are not recyclable."] },
+  { icon: Leaf, title: "Composting organic waste", points: ["Mix wet waste (peels, leftovers) with dry leaves or cocopeat.", "Turn the pile weekly and keep it moist, not wet.", "Avoid meat, oil and dairy in small home composters."] },
+  { icon: AlertTriangle, title: "Battery & e-waste safety", points: ["Tape battery terminals before storing or dropping off.", "Never open, crush or burn batteries or devices.", "Use an authorised e-waste recycler or brand take-back."] },
+  { icon: Trash2, title: "Reducing plastic waste", points: ["Carry a cloth bag and a reusable bottle.", "Choose refills and loose produce where possible.", "Say no to single-use cutlery and straws."] },
+  { icon: Leaf, title: "Why it matters", points: ["Segregated waste can be composted or recycled instead of landfilled.", "Hazardous items in landfills can leak toxins into soil and water.", "Clean dry waste supports waste pickers' livelihoods."] },
+];
