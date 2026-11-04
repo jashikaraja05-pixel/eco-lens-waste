@@ -20,16 +20,16 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { classifyWaste, deleteMyAccount } from "@/lib/classify.functions";
-import { reuseTips, safetyWarnings, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
+import { reuseTips, safetyFor, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
 import { BINS, rowToScan, stats, type Scan, type ScanRow, type VerifiedCategory } from "@/lib/eco-store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "EcoLens AI — Scan. Sort. Save." },
-      { name: "description", content: "Scan any waste item with AI and learn exactly which bin it belongs in." },
-      { property: "og:title", content: "EcoLens AI — Scan. Sort. Save." },
-      { property: "og:description", content: "Scan any waste item with AI and learn exactly which bin it belongs in." },
+      { title: "ECO-LENSAI — AI-Powered Smart Waste Segregation" },
+      { name: "description", content: "Photograph a waste item, get its category, the right bin and safe disposal steps. Private scan history and dashboard." },
+      { property: "og:title", content: "ECO-LENSAI — AI-Powered Smart Waste Segregation" },
+      { property: "og:description", content: "Photograph a waste item, get its category, the right bin and safe disposal steps. Private scan history and dashboard." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -272,9 +272,10 @@ function AuthScreen() {
   };
 
   return (
-    <div className="bg-auth flex min-h-dvh items-center justify-center">
-      <div className="pt-safe flex w-full items-center justify-center px-4 py-10 sm:px-6">
-        <div className="fade-up w-full max-w-md rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8">
+    <div className="bg-auth min-h-dvh">
+      <div className="pt-safe mx-auto grid w-full max-w-6xl items-center gap-8 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[1.15fr_1fr] lg:gap-12 lg:px-10">
+        <Intro />
+        <div id="auth-card" className="fade-up w-full max-w-md scroll-mt-4 justify-self-center rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8 lg:justify-self-end">
           <div className="mb-6 flex justify-center"><Brand tagline /></div>
           <div className="grid grid-cols-2 rounded-xl bg-muted p-1" role="tablist" aria-label="Authentication mode">
             {(["login", "signup"] as const).map((m) => (
@@ -319,6 +320,45 @@ function AuthScreen() {
   );
 }
 
+const HOW_IT_WORKS = [
+  { icon: Upload, text: "Upload or capture a photo of one waste item" },
+  { icon: Sparkles, text: "Tap Analyze — the AI reads the image" },
+  { icon: Recycle, text: "See the category and the right bin" },
+  { icon: CheckCircle2, text: "Follow the disposal and safety steps" },
+  { icon: History, text: "Review past scans on your dashboard and history" },
+];
+
+function Intro() {
+  return (
+    <section aria-labelledby="intro-title" className="fade-up min-w-0">
+      <Brand />
+      <a href="#auth-card" className="mt-4 inline-flex h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground lg:hidden">Log in or sign up <ArrowRight className="size-4" /></a>
+      <h1 id="intro-title" className="font-display mt-6 text-4xl font-bold tracking-tight sm:text-5xl">ECO-LENSAI</h1>
+      <p className="mt-2 text-lg font-medium text-primary sm:text-xl">AI-Powered Smart Waste Segregation System</p>
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <div className="glass rounded-2xl p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold"><AlertTriangle className="size-4 text-destructive" /> Problem</p>
+          <p className="mt-1 text-sm text-muted-foreground">Incorrect waste segregation causes environmental pollution and reduces recycling efficiency.</p>
+        </div>
+        <div className="glass rounded-2xl p-4">
+          <p className="flex items-center gap-2 text-sm font-semibold"><Leaf className="size-4 text-primary" /> Solution</p>
+          <p className="mt-1 text-sm text-muted-foreground">ECO-LENSAI uses AI-assisted image classification to help you identify waste and follow the right disposal method.</p>
+        </div>
+      </div>
+      <p className="mt-6 text-sm font-semibold">How it works</p>
+      <ol className="mt-2 grid gap-2">
+        {HOW_IT_WORKS.map(({ icon: Icon, text }, i) => (
+          <li key={text} className="flex items-center gap-3 rounded-xl bg-card/80 px-3 py-2.5 text-sm shadow-sm">
+            <span className="grid size-6 shrink-0 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">{i + 1}</span>
+            <Icon className="size-4 shrink-0 text-primary" aria-hidden="true" />{text}
+          </li>
+        ))}
+      </ol>
+      <p className="mt-4 text-xs text-muted-foreground">Five categories: Organic · Recyclable · Hazardous · E-waste · Residual. Low-confidence results are shown as Uncertain instead of guessing.</p>
+    </section>
+  );
+}
+
 /* ---------------- Scanner ---------------- */
 function shrink(src: string, max = 768): Promise<string> {
   return new Promise((res, rej) => {
@@ -338,6 +378,7 @@ function shrink(src: string, max = 768): Promise<string> {
   });
 }
 
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const STAGES = ["Uploading image", "Detecting the item", "Matching segregation rules"];
 
 function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
@@ -407,7 +448,8 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
 
   const onFile = (f?: File) => {
     if (!f || analyzingRef.current) return;
-    if (!f.type.startsWith("image/")) { toast.error("Please choose an image file."); return; }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) { toast.error("Please choose a JPG, PNG or WebP image."); return; }
+    if (f.size > MAX_UPLOAD_BYTES) { toast.error("That image is over 15 MB. Please choose a smaller photo."); return; }
     const operation = ++operationRef.current;
     setImage(null); setResult(null); setFailure(null);
     const r = new FileReader();
@@ -483,7 +525,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
                 <span className={`grid size-16 place-items-center rounded-2xl transition-all ${drag ? "bg-primary text-primary-foreground" : "bg-card text-primary shadow-sm group-hover:scale-105"}`}><ImagePlus className="size-8" /></span>
                 <span className="font-semibold">{drag ? "Drop to upload" : "Tap to choose a photo"}</span>
                 <span className="hidden text-sm text-muted-foreground sm:block">or drag and drop an image here</span>
-                <span className="text-xs text-muted-foreground">JPG, PNG or WEBP · one item per photo works best</span>
+                <span className="text-xs text-muted-foreground">JPG, PNG or WebP up to 15 MB · one item per photo works best</span>
               </button>
             ) : (
               <button type="button" onClick={startCam} className="group flex size-full flex-col items-center justify-center gap-3 p-4 text-center">
@@ -508,7 +550,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
               </div>
             )}
           </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => onFile(e.target.files?.[0])} />
 
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:gap-3">
             {mode === "camera" && camOn && !image && (
@@ -572,6 +614,8 @@ function ResultCard({ r }: { r: ScanResult }) {
   const unsure = r.category === "uncertain";
   const b = BINS[r.category];
   const Icon = CAT_ICON[r.category];
+  const warnings = safetyFor(r.category, r.item);
+  const confLabel = r.source === "python" ? "Model confidence" : "AI-estimated confidence";
   return (
     <div className={`fade-up overflow-hidden rounded-3xl border bg-card shadow-sm ${unsure ? "border-warning" : "border-border"}`}>
       <div className={`${unsure ? "bg-warning-soft text-warning-foreground" : `${b.tone} text-primary-foreground`} flex items-center gap-4 p-5 sm:p-6`}>
@@ -587,16 +631,17 @@ function ResultCard({ r }: { r: ScanResult }) {
         <h2 className="mt-1 text-xl font-bold sm:text-2xl">{r.item}</h2>
         <p className="mt-1 text-sm font-medium text-primary">{r.bin}</p>
         {unsure && <p role="status" className="mt-3 flex gap-2 rounded-xl border border-warning/50 bg-warning-soft p-3 text-sm text-warning-foreground"><HelpCircle className="mt-0.5 size-4 shrink-0" /> The model isn't confident enough to recommend a bin. Retake the photo with one item in clear light.</p>}
-        {safetyWarnings[r.category].length > 0 && (
+        {warnings.length > 0 && (
           <div role={r.category === "hazardous" || r.category === "ewaste" ? "alert" : "note"} className={`mt-3 space-y-1.5 rounded-xl border p-3 text-sm ${r.category === "hazardous" || r.category === "ewaste" ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-border bg-muted text-muted-foreground"}`}>
-            {safetyWarnings[r.category].map((w) => <p key={w} className="flex gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{w}</p>)}
+            {warnings.map((w) => <p key={w} className="flex gap-2"><AlertTriangle className="mt-0.5 size-4 shrink-0" />{w}</p>)}
           </div>
         )}
         <div className="mt-5">
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Model confidence</span><span className="font-semibold">{r.confidence}%</span></div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={r.confidence} aria-valuemin={0} aria-valuemax={100} aria-label="Model confidence">
+          <div className="flex justify-between text-sm"><span className="text-muted-foreground">{confLabel}</span><span className="font-semibold">{r.confidence}%</span></div>
+          <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={r.confidence} aria-valuemin={0} aria-valuemax={100} aria-label={confLabel}>
             <div className={`${unsure ? "bg-warning" : "bg-ocean"} h-full rounded-full transition-all duration-700`} style={{ width: `${r.confidence}%` }} />
           </div>
+          {r.source !== "python" && <p className="mt-1.5 text-xs text-muted-foreground">Reported by the vision AI itself — not a measured accuracy.</p>}
         </div>
         <div className="mt-5 rounded-2xl bg-secondary p-4 text-sm"><p className="mb-1 font-semibold">Why this bin?</p><p className="text-secondary-foreground">{r.reasoning}</p></div>
         <p className="mt-5 font-semibold">Disposal guidance</p>
@@ -606,7 +651,7 @@ function ResultCard({ r }: { r: ScanResult }) {
           ))}
         </ol>
         <div className="mt-5 rounded-2xl border border-border p-4 text-sm"><p className="mb-1 flex items-center gap-1.5 font-semibold"><Recycle className="size-4 text-primary" /> Reuse &amp; recycling</p><p className="text-muted-foreground">{reuseTips[r.category]}</p></div>
-        <p className="mt-5 flex items-center gap-1.5 border-t border-border pt-4 text-xs text-muted-foreground"><Server className="size-3.5" /> Engine: {r.source === "python" ? "Python FastAPI service" : "Built-in vision AI"} · <CheckCircle2 className="size-3.5 text-primary" /> Saved to history</p>
+        <p className="mt-5 flex items-center gap-1.5 border-t border-border pt-4 text-xs text-muted-foreground"><Server className="size-3.5" /> Engine: {r.source === "python" ? "Python FastAPI service" : "Built-in vision AI (Lovable AI Gateway)"} · <CheckCircle2 className="size-3.5 text-primary" /> Saved to history</p>
       </div>
     </div>
   );
@@ -657,7 +702,7 @@ function Dashboard({ history }: { history: Scan[] }) {
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-3 sm:gap-4">
         <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Active days</p><p className="mt-1 text-2xl font-bold">{days}</p><p className="text-xs text-muted-foreground">Days you scanned at least once</p></div>
-        <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Avg. confidence</p><p className="mt-1 text-2xl font-bold">{s.total - s.uncertain ? `${s.avgConfidence}%` : "—"}</p><p className="text-xs text-muted-foreground">Confident results only</p></div>
+        <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Avg. AI confidence</p><p className="mt-1 text-2xl font-bold">{s.total - s.uncertain ? `${s.avgConfidence}%` : "—"}</p><p className="text-xs text-muted-foreground">Confident results only</p></div>
         <div className="glass rounded-3xl p-5"><p className="flex items-center gap-1.5 text-sm text-muted-foreground"><ShieldCheck className="size-4" /> Pilot accuracy</p><p className="mt-1 text-2xl font-bold">{s.pilotAccuracy === null ? "—" : `${s.pilotAccuracy}%`}</p><p className="text-xs text-muted-foreground">{s.verified ? `${s.verifiedCorrect} of ${s.verified} scans you checked were right` : "Open a scan in History and mark the real category"}</p></div>
       </div>
     </section>
@@ -831,6 +876,36 @@ function Learn() {
           </div>
         </article>
       </div>
+
+      <h2 className="mt-10 text-xl font-bold sm:text-2xl">Quick guides</h2>
+      <p className="mt-1 text-sm text-muted-foreground">Short, practical habits that make segregation work.</p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {GUIDES.map(({ icon: Icon, title, points }) => (
+          <article key={title} className="glass min-w-0 rounded-2xl p-5">
+            <p className="flex items-center gap-2 font-semibold"><span className="grid size-9 place-items-center rounded-xl bg-secondary text-primary"><Icon className="size-5" /></span>{title}</p>
+            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+              {points.map((t) => <li key={t} className="flex gap-2"><CheckCircle2 className="mt-0.5 size-4 shrink-0 text-primary" />{t}</li>)}
+            </ul>
+          </article>
+        ))}
+      </div>
+
+      <div className="mt-8 rounded-2xl border border-border bg-card p-5 text-sm">
+        <p className="flex items-center gap-2 font-semibold"><Server className="size-4 text-primary" /> What the scanner can recognise</p>
+        <ul className="mt-2 space-y-1.5 text-muted-foreground">
+          <li><strong className="text-foreground">Built-in vision AI (active now):</strong> a general vision model sorts any photo into the five categories. Its confidence is self-reported, so treat results as guidance and check local rules.</li>
+          <li><strong className="text-foreground">Local trained model (optional, not deployed yet):</strong> with the default TrashNet dataset it only covers recyclable and residual items. With the 12-class dataset, "hazardous" means batteries only — it does not detect chemicals, medicines or aerosols.</li>
+        </ul>
+      </div>
     </section>
   );
 }
+
+const GUIDES = [
+  { icon: Recycle, title: "Segregation basics", points: ["Keep at least two bins at home: wet (green) and dry (blue).", "Store hazardous and e-waste separately until a collection drive.", "Never mix wet waste into dry recyclables — it spoils them."] },
+  { icon: Recycle, title: "Recycling guidelines", points: ["Rinse and dry bottles, cans and jars.", "Flatten cardboard and keep paper dry.", "Food-soiled paper and multi-layer wrappers are not recyclable."] },
+  { icon: Leaf, title: "Composting organic waste", points: ["Mix wet waste (peels, leftovers) with dry leaves or cocopeat.", "Turn the pile weekly and keep it moist, not wet.", "Avoid meat, oil and dairy in small home composters."] },
+  { icon: AlertTriangle, title: "Battery & e-waste safety", points: ["Tape battery terminals before storing or dropping off.", "Never open, crush or burn batteries or devices.", "Use an authorised e-waste recycler or brand take-back."] },
+  { icon: Trash2, title: "Reducing plastic waste", points: ["Carry a cloth bag and a reusable bottle.", "Choose refills and loose produce where possible.", "Say no to single-use cutlery and straws."] },
+  { icon: Leaf, title: "Why it matters", points: ["Segregated waste can be composted or recycled instead of landfilled.", "Hazardous items in landfills can leak toxins into soil and water.", "Clean dry waste supports waste pickers' livelihoods."] },
+];

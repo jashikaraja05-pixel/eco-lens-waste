@@ -26,7 +26,7 @@ from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 
-from common import ALLOWED, BINS, CATEGORIES, DISPOSAL_STEPS, MAX_BYTES, SAFETY_WARNINGS, UNCERTAIN_THRESHOLD, sniff
+from common import ALLOWED, BINS, CATEGORIES, DISPOSAL_STEPS, MAX_BYTES, UNCERTAIN_THRESHOLD, safety_for, sniff
 
 AI_BASE_URL = os.getenv("AI_BASE_URL", "https://ai.gateway.lovable.dev/v1").rstrip("/")
 AI_API_KEY = os.getenv("AI_API_KEY", "")
@@ -106,7 +106,7 @@ def predict_local(image_bytes: bytes, mime: str) -> dict:
         "reasoning": p["reasoning"],
         "steps": DISPOSAL_STEPS[category],
         "bin": BINS[category],
-        "warnings": SAFETY_WARNINGS.get(category, []),
+        "warnings": safety_for(category, p["item"]),
         "engine": engine_name(),
         "latency_ms": p["_latency_ms"],
     }
@@ -151,7 +151,7 @@ def predict_gateway(image_bytes: bytes, mime: str) -> dict:
         category = "uncertain"
     return {"item": item, "category": category, "confidence": confidence,
             "reasoning": reasoning, "steps": steps or DISPOSAL_STEPS[category],
-            "bin": BINS[category], "warnings": SAFETY_WARNINGS.get(category, []),
+            "bin": BINS[category], "warnings": safety_for(category, item),
             "engine": engine_name()}
 
 
