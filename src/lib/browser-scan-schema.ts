@@ -11,6 +11,8 @@ export const browserSaveSchema = z.object({
   item: z.string().refine((item) => manifest.classes.includes(item), "Unknown model class."),
   confidence: z.number().int().min(0).max(100),
   requestId: z.string().uuid(),
+  /** false when the browser multi-view check found the prediction unreliable. */
+  reliable: z.boolean().optional(),
 }).strict();
 
 export type BrowserSaveInput = z.infer<typeof browserSaveSchema>;
@@ -18,8 +20,9 @@ export type BrowserSavedResult = ScanResult & { provenance: "client-reported" };
 
 /** Server-derived category, threshold, instructions and source; not inference attestation. */
 export function normalizeBrowserReport(input: BrowserSaveInput): BrowserSavedResult {
-  const category = manifest.class_to_category[input.item];
-  if (!category) throw new Error("Unknown model class.");
+  const mapped = manifest.class_to_category[input.item];
+  if (!mapped) throw new Error("Unknown model class.");
+  const category = input.reliable === false ? "uncertain" : mapped;
   const result = normalizePrediction({
     item: input.item, category, confidence: input.confidence,
     reasoning: `Browser-reported MobileNetV3-Small prediction: '${input.item}' with ${input.confidence}% prediction confidence. Not measured accuracy; model execution is not independently verified.`,

@@ -88,3 +88,22 @@ export function preprocessRgb(image: RgbImage, settings: {
   }
   return tensor;
 }
+export function flipHorizontal(image: RgbImage): RgbImage {
+  const data = new Uint8Array(image.data.length);
+  for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+    const from = (y * image.width + x) * 3, to = (y * image.width + image.width - 1 - x) * 3;
+    data[to] = numberAt(image.data, from); data[to + 1] = numberAt(image.data, from + 1); data[to + 2] = numberAt(image.data, from + 2);
+  }
+  return { width: image.width, height: image.height, data };
+}
+
+/** Whole object in frame: centre the photo on a grey (128) square, like Pillow ImageOps.pad. */
+export function padSquare(image: RgbImage): RgbImage {
+  const size = Math.max(image.width, image.height);
+  const data = new Uint8Array(size * size * 3).fill(128);
+  const left = Math.round((size - image.width) / 2), top = Math.round((size - image.height) / 2);
+  for (let y = 0; y < image.height; y++) {
+    data.set(image.data.subarray((y * image.width) * 3, (y + 1) * image.width * 3), ((y + top) * size + left) * 3);
+  }
+  return { width: size, height: size, data };
+}

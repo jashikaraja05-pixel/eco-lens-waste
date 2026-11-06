@@ -495,7 +495,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
     savingRef.current = true;
     setSaving(true); setSaveError(null);
     try {
-      const saved = await saveLocal({ data: { image, item: localResult.item, confidence: localResult.confidence, requestId } });
+      const saved = await saveLocal({ data: { image, item: localResult.item, confidence: localResult.confidence, requestId, reliable: localResult.reliable } });
       if (operation !== operationRef.current) return;
       onSaved(saved); setResult(saved); setLocalResult(null);
       toast.success("Scan saved to your history.");
@@ -660,7 +660,7 @@ export function ResultCard({ r, onSave, saving = false, saveError }: { r: ScanRe
         <span className="grid size-14 shrink-0 place-items-center rounded-2xl bg-card/20"><Icon className="size-7" /></span>
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider opacity-85">{unsure ? "Needs a rescan" : "Goes in the"}</p>
-          <p className="font-display text-2xl font-bold">{unsure ? "Uncertain" : b.bin}</p>
+          <p className="font-display text-2xl font-bold">{unsure ? "Uncertain – Please verify" : b.bin}</p>
           <p className="text-sm opacity-90">{b.label}</p>
         </div>
       </div>

@@ -16,3 +16,4 @@
 - Keep WASM binaries or their large-asset pointers under public/wasm and load explicit URLs only during browser actions; runtime loaders must not use source imports or import.meta-relative binary URLs because they break server deployment.
 - Bin text, per-result safety notes (`safetyFor`) and the uncertainty threshold are owned by scan-schema.ts; the Python service in `backend/` mirrors them in common.py and is used when `PYTHON_CLASSIFIER_URL` is set.
 - Keep the React interface in one route file.
+- Browser predictions run centre, mirrored and padded views; disagreement or low view confidence (stricter for paper/plastic/glass look-alikes) forces Uncertain, and saves carry that flag so the server stores Uncertain too.

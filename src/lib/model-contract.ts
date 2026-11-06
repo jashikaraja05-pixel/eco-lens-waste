@@ -30,8 +30,43 @@ export const modelManifestSchema = z.object({
 export type ModelManifest = z.infer<typeof modelManifestSchema>;
 /** Never assign this type to a stored Scan or send it to classifyWaste. */
 export type LocalPrediction = Omit<ScanResult, "source"> & {
-  source: "mobilenet-browser"; saved: false; trust: "unverified";
+  source: "mobilenet-browser"; saved: false; trust: "unverified"; reliable: boolean;
 };
+
+/** Classes that real-world photos of other objects often collapse into (e.g. apples→glass/plastic, white switches→paper). */
+export const LOOKALIKE_CLASSES = ["paper", "plastic", "brown-glass", "green-glass", "white-glass"] as const;
+export const VIEW_MIN_CONFIDENCE = 60;
+export const LOOKALIKE_MIN_CONFIDENCE = 80;
+
+function softmax(logits: readonly number[] | Float32Array): number[] {
+  const maximum = Math.max(...logits);
+  const e = Array.from(logits, (v) => Math.exp(v - maximum));
+  const total = e.reduce((a, b) => a + b, 0);
+  return e.map((v) => v / total);
+}
+
+/** Primary prediction comes from the parity-checked centre view (views[0]); flipped and padded
+ * views must agree and stay confident, otherwise the result is reported as uncertain. */
+export function predictionFromViews(views: ReadonlyArray<readonly number[] | Float32Array>, manifest: ModelManifest): LocalPrediction {
+  const [centre, ...rest] = views;
+  if (!centre) throw new Error("The trained model returned invalid outputs.");
+  const base = predictionFromLogits(centre, manifest);
+  const index = manifest.classes.indexOf(base.item);
+  const minimum = LOOKALIKE_CLASSES.includes(base.item as (typeof LOOKALIKE_CLASSES)[number]) ? LOOKALIKE_MIN_CONFIDENCE : VIEW_MIN_CONFIDENCE;
+  const reliable = base.category !== "uncertain" && [centre, ...rest].every((logits) => {
+    if (logits.length !== 13 || Array.from(logits).some((v) => !Number.isFinite(v))) throw new Error("The trained model returned invalid outputs.");
+    const p = softmax(logits);
+    return p.indexOf(Math.max(...p)) === index && (p[index] ?? 0) * 100 >= minimum;
+  });
+  return reliable ? base : unreliable(base, manifest);
+}
+
+export function unreliable(base: LocalPrediction, manifest: ModelManifest): LocalPrediction {
+  const normalized = normalizePrediction({ item: base.item, category: "uncertain", confidence: base.confidence,
+    reasoning: `MobileNetV3-Small leaned towards '${base.item}' (${base.confidence}% prediction confidence), but alternate views of the photo disagreed or were not confident enough, so no bin is recommended. Not measured accuracy.`,
+    steps: manifest.disposal_steps.uncertain ?? [] }, "python");
+  return { ...normalized, source: "mobilenet-browser", saved: false, trust: "unverified", reliable: false };
+}
 
 export function predictionFromLogits(logits: readonly number[] | Float32Array, manifest: ModelManifest): LocalPrediction {
   if (logits.length !== 13 || Array.from(logits).some((value) => !Number.isFinite(value))) {
@@ -53,5 +88,5 @@ export function predictionFromLogits(logits: readonly number[] | Float32Array, m
     reasoning: `MobileNetV3-Small matched dataset class '${item}' with ${confidence}% prediction confidence. This browser result is unverified and is not measured accuracy.`,
     steps: manifest.disposal_steps[category] ?? [],
   }, "python");
-  return { ...normalized, source: "mobilenet-browser", saved: false, trust: "unverified" };
+  return { ...normalized, source: "mobilenet-browser", saved: false, trust: "unverified", reliable: category !== "uncertain" };
 }

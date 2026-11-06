@@ -1,6 +1,6 @@
 import { imageSchema } from "./scan-schema";
-import { modelManifestSchema, predictionFromLogits, type LocalPrediction, type ModelManifest } from "./model-contract";
-import { preprocessRgb, type RgbImage } from "./model-preprocessing";
+import { modelManifestSchema, predictionFromViews, type LocalPrediction, type ModelManifest } from "./model-contract";
+import { flipHorizontal, padSquare, preprocessRgb, type RgbImage } from "./model-preprocessing";
 import type { InferenceSession } from "onnxruntime-web";
 
 let resources: Promise<{ manifest: ModelManifest; session: InferenceSession }> | undefined;
@@ -101,17 +101,21 @@ export async function classifyLocally(file: Blob): Promise<LocalPrediction> {
   if (file.size > 15 * 1024 * 1024) throw new Error("Image is over 15 MB.");
   const image = await decodeModelImage(file);
   const { manifest, session } = await loadResources();
-  const tensorData = preprocessRgb(image, {
+  const settings = {
     resizeShortEdge: manifest.preprocessing.resize_short_edge, cropSize: manifest.image_size,
     mean: manifest.normalization.mean, std: manifest.normalization.std,
-  });
+  };
   const { Tensor } = await import("onnxruntime-web/wasm");
-  const output = await session.run({ [manifest.input_name]: new Tensor("float32", tensorData, [1, 3, 224, 224]) });
-  const logits = output[manifest.output_name];
-  if (!logits || logits.type !== "float32" || !(logits.data instanceof Float32Array) || logits.dims.length !== 2 || logits.dims[0] !== 1 || logits.dims[1] !== 13) {
-    throw new Error("The trained model output shape is invalid.");
+  const views: Float32Array[] = [];
+  for (const view of [image, flipHorizontal(image), padSquare(image)]) {
+    const output = await session.run({ [manifest.input_name]: new Tensor("float32", preprocessRgb(view, settings), [1, 3, 224, 224]) });
+    const logits = output[manifest.output_name];
+    if (!logits || logits.type !== "float32" || !(logits.data instanceof Float32Array) || logits.dims.length !== 2 || logits.dims[0] !== 1 || logits.dims[1] !== 13) {
+      throw new Error("The trained model output shape is invalid.");
+    }
+    views.push(logits.data);
   }
-  return predictionFromLogits(logits.data, manifest);
+  return predictionFromViews(views, manifest);
 }
 
 export function capturedImageBlob(image: string): Blob {
