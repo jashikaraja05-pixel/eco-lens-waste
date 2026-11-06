@@ -1,4 +1,4 @@
-# ECO-LENSAI — AI-Powered Smart Waste Segregation System
+# ECO-LENS-AI — AI-Powered Smart Waste Segregation System
 
 **Scan. Sort. Save.**
 
@@ -7,11 +7,11 @@
 | | |
 |---|---|
 | Team name | solo stack |
-| Team leader | Jashika Rajasekaran |
+| Team leader | Jashika R |
 | Institution | Rathinam Technical Campus |
-| GitHub | <https://github.com/jashikaraja05-pixel/ECO-LENSAI> |
-| Live demo | _Not published yet — add the URL here once the app is published and checked._ |
-| Demo video | **[ADD VIDEO LINK HERE]** |
+| GitHub | <https://github.com/jashikaraja05-pixel/eco-lens-waste> |
+| Live demo | <https://eco-lens-waste.lovable.app> |
+| Demo video | [Watch ECO-LENS-AI Demo](https://drive.google.com/file/d/1YGdSYP2cZFC_ar5uKUi2GesWO0AZiHfv/view?usp=sharing) |
 
 ![Sign-in screen](docs/screenshots/auth.png)
 
@@ -35,7 +35,7 @@ ECO-LENSAI lets anyone photograph a waste item (upload or live camera). AI-assis
 - Email/password accounts with email confirmation
 - Image upload and live camera capture. The browser accepts JPG/PNG/WebP up to 15 MB and resizes the photo; the server checks type, size and file signature (magic bytes)
 - Classification result: category, bin, confidence, explanation, disposal steps, safety notes, reuse tips
-- Uncertain state for confidence below **55 %**, blurry photos or several mixed items
+- Uncertain state for low-confidence predictions (55% threshold), blurry images or multiple mixed items
 - Clear error state with **Try again**; nothing is saved when classification fails
 - Private scan history: search, filter, view details, delete one scan, clear all, delete account
 - Dashboard computed from saved scans only: totals, per-category counts and chart, active days, average confidence, pilot accuracy (from scans the user marked as checked)
@@ -45,15 +45,24 @@ ECO-LENSAI lets anyone photograph a waste item (upload or live camera). AI-assis
 ## 5. System architecture
 
 ```mermaid
+
 flowchart TD
-  A[Browser: React + TanStack Start] -->|photo as data URL| B[classifyWaste server function<br/>sign-in required, validates image]
-  B -->|PYTHON_CLASSIFIER_URL set| C[Python FastAPI /classify]
-  C --> C1[Local MobileNetV3 model<br/>only if trained weights exist]
-  C --> C2[Vision API fallback<br/>only if AI_API_KEY set]
-  B -->|default| D[Lovable AI Gateway<br/>vision model openai/gpt-6-astra]
-  B --> E[normalizePrediction<br/>server-owned bins + 55% rule]
-  E --> F[(Lovable Cloud Postgres: scans<br/>row-level security: own rows only)]
-  A -->|read history / dashboard| F
+    A["User"] --> B["ECO-LENS-AI Web App"]
+    B --> C["Image Upload / Live Camera"]
+    C --> D["Authentication & Image Validation"]
+    D --> E["Lovable AI Gateway"]
+    E --> F["AI Waste Classification"]
+    F --> G["Normalize Prediction"]
+    G --> H{"Confidence >= 55%?"}
+    H -->|Yes| I["Category & Bin Recommendation"]
+    H -->|No| J["Uncertain - Rescan"]
+    I --> K["Save Scan to Database"]
+    K --> L["Dashboard & Scan History"]
+    J --> M["Display Rescan Guidance"]
+
+    D -. "Optional integration" .-> N["Python FastAPI Service"]
+    N -.-> O["MobileNetV3 Model - Not Yet Trained"]
+
 ```
 
 **What runs today:** the deployed app classifies through the **Lovable AI Gateway** (a general vision model). The Python service is optional and **not deployed**; its local model is **not trained yet**. If the Python service is configured but unreachable, the scan fails visibly. The app never falls back to another engine without telling you.
@@ -98,8 +107,8 @@ The local model does **not** detect chemicals, medicines or aerosols as hazardou
 ## 10. Installation
 
 ```bash
-git clone https://github.com/jashikaraja05-pixel/ECO-LENSAI.git
-cd ECO-LENSAI
+git clone https://github.com/jashikaraja05-pixel/waste-segregation.git
+cd waste-segregation
 ```
 
 ### Frontend setup
@@ -137,7 +146,7 @@ uvicorn main:app --port 8000                            # GET /health shows the 
 | `ML_MODEL_DIR` | Python service (optional) | Folder with `best.pt` + `config.json` |
 | `CORS_ORIGINS` | Python service (optional) | Comma-separated browser origins; not needed for server-to-server calls |
 
-No secret keys are in the code. `.env.example` (root) and `backend/.env.example` contain placeholders only. The root `.env` contains only the public connection values.
+No secret keys should be committed to the repository. The `.env.example` files contain placeholders for local configuration. Keep actual environment files and private API keys out of version control.
 
 ## 12. API endpoints (Python service)
 
@@ -165,8 +174,11 @@ Results from the 4 Nov 2026 run:
 
 ## 14. Deployment
 
-- **Web app:** publish from Lovable. The frontend, auth, database and classification all run there, so no separate hosting is needed. After publishing, add the live URL at the top of this README.
-- **Python service (optional):** deploy `backend/` to a Python host (Render, Railway, Fly.io, or use the `Dockerfile`) with `uvicorn main:app --host 0.0.0.0 --port $PORT`. Set `CLASSIFIER_API_KEY`. Include a trained `models/` folder to use the local model. Then add the app secrets `PYTHON_CLASSIFIER_URL` and `PYTHON_CLASSIFIER_API_KEY`. Until then, the app uses the built-in vision AI.
+- **Web application:** Published using Lovable Cloud. The frontend, authentication, database and AI classification are available through the live application.
+
+  **Live URL:** https://eco-lens-waste.lovable.app
+
+- **Python service (optional):** The Python FastAPI backend is available in the repository but is not currently deployed. A trained local model can be integrated in a future deployment. The currently published application uses the Lovable AI Gateway for classification.
 
 ## 15. Limitations and future improvements
 
@@ -177,12 +189,49 @@ Results from the 4 Nov 2026 run:
 - Images are stored compressed (≤ 768 px) in the database.
 - Future work: train and evaluate the local model, add hazardous classes beyond batteries, offer multilingual guidance, and find nearby drop-off points.
 
-## For judges: test account
+## For Judges – Application Access
 
-- Email: **[ADD JUDGE TEST EMAIL]**
-- Password: **[ADD JUDGE TEST PASSWORD]**
+ECO-LENSAI is a fully functional, live application.
 
-Or sign up with your own email and click the confirmation link. Each account sees only its own scans.
+**Live Application:** https://eco-lens-waste.lovable.app
+
+**Evaluation Account:**
+- Email: [jashikasuma@gmail.com]
+- Password: [jashika.2008]
+
+This account contains previously tested waste classification results, scan history and dashboard statistics.
+
+Judges can also create their own account using their email address, set a password and complete email verification to explore the application.
+
+Each account can access only its own scan history.
+
+### How Judges Can Evaluate ECO-LENS-AI
+
+1. Open the [Live Application](https://eco-lens-waste.lovable.app).
+2. Sign in using the evaluation account.
+3. Navigate to the Waste Scanner.
+4. Upload an image of a waste item.
+5. View the AI classification result.
+6. Check the recommended waste bin and disposal instructions.
+7. Open Scan History to view saved results.
+8. Visit the Dashboard to explore scan statistics.
+9. Explore the Learn Hub for waste management guidance.
+
+### Test Case Results
+
+| Test Case | Expected Result | Status |
+|---|---|---|
+| Plastic bottle image | Recyclable – Blue Bin | Passed |
+| Low-confidence prediction | Uncertain – Request rescan | Passed (unit test) |
+| Invalid image upload | Reject invalid upload | Passed (unit test) |
+| Oversized image upload | Reject oversized upload | Passed (unit test) |
+| User data isolation | Users can access only their own scan history | Passed |
+| Dashboard statistics | Calculate statistics from saved scans | Passed (unit test) |
+
+**Testing Summary:**
+- Web unit tests: 16/16 passed.
+- Python tests: 16 passed, 3 skipped.
+- End-to-end test: Plastic bottle successfully classified as Recyclable and saved to scan history.
 
 ## Screenshots
 
@@ -192,10 +241,12 @@ Or sign up with your own email and click the confirmation link. Each account see
 | ![History](docs/screenshots/history.png) | ![Learn Hub](docs/screenshots/learn.png) |
 | ![Organic result](docs/screenshots/result-organic.png) | ![Uncertain result](docs/screenshots/result-uncertain-mixed.png) |
 
-## AI tools disclosure
+## AI Tools Disclosure
 
-- Built with the Lovable AI coding assistant (and ChatGPT for review).
-- Test images used in end-to-end checks were AI-generated.
+- Lovable AI coding assistant was used for application development.
+- ChatGPT was used for code review, debugging assistance and documentation support.
+- The deployed application uses the Lovable AI Gateway vision model for AI-powered waste classification.
+- AI-generated images were used for testing purposes.
 
 ## License
 
