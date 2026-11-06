@@ -1,0 +1,56 @@
+{
+  "verified_at": "2026-11-06",
+  "engine_source": "MobileNetV3-Small (ONNX Browser)",
+  "provenance": "client-reported",
+  "frontend_tests": { "passed": 55, "files": 8 },
+  "python_tests": { "passed": 19, "skipped": 0, "warnings": 1 },
+  "browser_test": "tests/browser_save_flow.py",
+  "real_image": {
+    "dataset": "TrashNet",
+    "original_path": "dataset-resized/plastic/plastic1.jpg",
+    "source": "https://github.com/garythung/trashnet",
+    "license": "MIT"
+  },
+  "passed_flows": [
+    "Real sign-in, upload, ONNX prediction, explicit save, result, history detail, reload, dashboard",
+    "Save failure preserves prediction; explicit retry succeeds",
+    "Save retry returns original row without duplicates",
+    "Two-account SELECT, UPDATE and DELETE isolation",
+    "Anonymous save and caller-supplied privileged fields rejected",
+    "Direct fabricated INSERT and source UPDATE denied; owner feedback works",
+    "Retry identifiers scoped per owner",
+    "Below-55 result saved and retrieved as uncertain with no bin",
+    "Camera ONNX prediction and saving",
+    "880x715 and 390x844 layouts with no horizontal overflow",
+    "Explicit Gateway result saved separately with gateway source",
+    "Model loading failure does not automatically invoke Gateway"
+  ],
+  "runtime_errors": [],
+  "data_cleanup": "Only isolated test accounts and their own scans were removed; existing data untouched.",
+  "limitations": [
+    "Browser predictions are client-reported; server normalization and authentication cannot attest browser model execution or correctness.",
+    "Published hosted asset/CSP checks remain pending publication.",
+    "Independent held-out accuracy and representative whole-device e-waste recognition require the original labelled split; prior samples included misclassifications.",
+    "Predictions are not saved until Save Scan is explicitly pressed; saving uploads a compressed image and reported label/score.",
+    "Python tests emit one dependency deprecation warning, with no test failures."
+  ],
+  "changed_files": [
+    "AGENTS.md",
+    "backend/README.md",
+    "docs/browser-save-verification.json",
+    "drizzle/migrations/0001_browser_scan_provenance.sql",
+    "drizzle/migrations/meta/0001_snapshot.json",
+    "drizzle/migrations/meta/_journal.json",
+    "roadmap.md",
+    "src/integrations/supabase/types.ts",
+    "src/lib/browser-scan-schema.ts",
+    "src/lib/classifier.server.ts",
+    "src/lib/classify.functions.ts",
+    "src/lib/eco-store.ts",
+    "src/lib/scan-schema.ts",
+    "src/routes/index.tsx",
+    "src/test/browser-result.test.tsx",
+    "src/test/browser-save.test.ts",
+    "tests/browser_save_flow.py"
+  ]
+}

@@ -34,3 +34,10 @@
 # WASM deployment correction
 - [x] Remove source-relative binary loading and move browser binaries to public/wasm
 - [x] Recheck 26 real-image predictions, eight exact preprocessing fixtures, signed-in camera/mobile flow and 40 frontend tests
+
+# Browser prediction history saving
+- [x] Add authenticated, validated, owner-only browser saving with explicit engine/provenance
+- [x] Add Save Scan to the primary browser result and keep Gateway as an explicit alternative
+- [x] Test source preservation, failed-save retries, uncertainty and two-account isolation
+- [x] Verify sign-in → upload → predict → save → history → dashboard; camera and 880×715 / 390×844 layouts
+- [x] Run all tests: 55 frontend, 19 Python and retained authenticated browser/isolation flow; report changed files and remaining limits

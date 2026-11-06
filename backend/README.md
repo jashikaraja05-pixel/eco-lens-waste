@@ -99,14 +99,30 @@ Pillow's separable bilinear filter and fixed-point rounding. Reference tests
 compare complete tensors, not just dimensions. Apply softmax to all 13 logits;
 round confidence as Python does, then apply the existing **below 55%** rule.
 
-**Trust and saving:** “Analyze Waste” produces an explicitly unverified local
-preview with safety/bin guidance. It does not upload the image, create a history
-row or affect dashboard statistics. A separate “Classify and save online” action
-explicitly sends the image through the existing authenticated `classifyWaste`
-workflow. Gateway results are saved and identified as Gateway, not MobileNet.
-Existing optional Python routing is unchanged. No failure automatically switches
-engine. Browser predictions cannot prove their origin to the server; persisting
-client logits as authoritative would weaken the existing trust requirement.
+**Trust and saving:** “Analyze Waste” uses MobileNetV3 as the primary option and
+produces a local prediction with safety/bin guidance. “Save Scan” explicitly
+uploads the photo, reported label and confidence through authenticated
+`saveBrowserScan`. The server owns category/bin/guidance, user ID and source.
+Saved source is exactly `MobileNetV3-Small (ONNX Browser)` with provenance
+`client-reported`: saving does not prove browser model execution. The same
+owner-scoped request key returns the original row on retry rather than creating
+duplicates. History/dashboard include these explicitly saved rows.
+
+“Use Lovable AI Gateway” is an explicit alternative through authenticated
+`classifyWaste`, even if a legacy Python URL is configured. It creates a separate
+`gateway` result; existing Gateway/Python rows are not relabelled. No failure
+automatically switches engines. Direct database INSERT is revoked; saving
+handlers insert after authentication with server-assigned ownership. Reads,
+deletes and feedback-only updates retain owner RLS. Browser results remain
+client-reported, not authoritative inference attestations.
+
+**Authenticated saving verification:** sign in → upload original TrashNet plastic
+image → actual ONNX inference → result → save → history detail/reload → dashboard
+passed in Chromium. Two isolated accounts verified cross-owner read/update/delete
+denial, anonymous/forged saving denial, owner feedback, retry deduplication and
+separately labelled Gateway saving. Camera saving and 880×715 / 390×844 layouts
+also passed. Run the retained `tests/browser_save_flow.py` with temporary sandbox
+credentials and `ECOLENS_TEST_IMAGE`; it deletes only its own temporary accounts.
 
 **Verified 6 November 2026:** 26 original images, two from each of the 13 classes,
 ran in Chromium through the actual browser ONNX engine. All 26 predicted labels

@@ -1,0 +1,12 @@
+ALTER TABLE public.scans ADD COLUMN IF NOT EXISTS provenance text NOT NULL DEFAULT 'server-classified';
+ALTER TABLE public.scans ADD COLUMN IF NOT EXISTS client_request_id uuid;
+ALTER TABLE public.scans ADD CONSTRAINT scans_provenance_check CHECK (provenance IN ('server-classified', 'client-reported'));
+ALTER TABLE public.scans ADD CONSTRAINT scans_browser_provenance_check CHECK ((source = 'MobileNetV3-Small (ONNX Browser)' AND provenance = 'client-reported') OR (source <> 'MobileNetV3-Small (ONNX Browser)' AND provenance = 'server-classified')) NOT VALID;
+CREATE UNIQUE INDEX scans_owner_request_unique ON public.scans (user_id, client_request_id) WHERE client_request_id IS NOT NULL;
+REVOKE INSERT ON public.scans FROM anon, authenticated;
+DROP POLICY IF EXISTS "own insert" ON public.scans;
+GRANT SELECT, DELETE ON public.scans TO authenticated;
+GRANT UPDATE (verified_category, feedback, verified_at) ON public.scans TO authenticated;
+GRANT ALL ON public.scans TO service_role;
+COMMENT ON COLUMN public.scans.provenance IS 'Browser predictions are client-reported and not proof of model execution; historic Gateway/Python classifications are server-classified.';
+COMMENT ON COLUMN public.scans.client_request_id IS 'Owner-scoped idempotency key for explicit browser Save Scan retries.';

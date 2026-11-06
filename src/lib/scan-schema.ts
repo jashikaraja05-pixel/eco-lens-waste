@@ -19,6 +19,8 @@ export const imageSchema = z.string().max(MAX_IMAGE_CHARS, "Image is too large (
 export const wasteCategories = ["organic", "recyclable", "hazardous", "ewaste", "residual"] as const;
 export type WasteCategory = (typeof wasteCategories)[number];
 export type StoredCategory = WasteCategory | "uncertain";
+export const BROWSER_SOURCE = "MobileNetV3-Small (ONNX Browser)" as const;
+export type ScanSource = "gateway" | "python" | typeof BROWSER_SOURCE;
 
 export const recommendedBins: Record<StoredCategory, string> = {
   organic: "Green Bin (Organic / Wet Waste)",
@@ -80,7 +82,7 @@ export type ScanResult = {
   confidence: number;
   reasoning: string;
   steps: string[];
-  source: "gateway" | "python";
+  source: ScanSource;
 };
 
 /** Server-owned bin mapping + uncertainty rule; never trusts the model's bin text. */

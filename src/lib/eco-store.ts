@@ -1,12 +1,13 @@
-import type { ScanResult, StoredCategory } from "./scan-schema";
+import { BROWSER_SOURCE, type ScanResult, type StoredCategory } from "./scan-schema";
 
 export type VerifiedCategory = Exclude<StoredCategory, "uncertain"> | "unsure";
-export type Scan = ScanResult & { id: string; image: string; createdAt: number; verifiedCategory: VerifiedCategory | null; feedback: string | null };
+export type Scan = ScanResult & { id: string; image: string; createdAt: number; verifiedCategory: VerifiedCategory | null; feedback: string | null; provenance?: string };
 
 export type ScanRow = {
   id: string; item: string; category: string; bin: string; confidence: number | null;
   reasoning: string; steps: unknown; image: string; source: string; created_at: string;
   verified_category?: string | null; feedback?: string | null;
+  provenance?: string | null;
 };
 
 const verifiedCats: VerifiedCategory[] = ["organic", "recyclable", "hazardous", "ewaste", "residual", "unsure"];
@@ -16,11 +17,14 @@ const cats: StoredCategory[] = ["organic", "recyclable", "hazardous", "ewaste", 
 /** Converts a database row into a UI scan, dropping malformed rows instead of crashing. */
 export function rowToScan(r: ScanRow): Scan | null {
   if (!cats.includes(r.category as StoredCategory)) return null;
+  const source = r.source === BROWSER_SOURCE ? BROWSER_SOURCE : r.source === "gateway" ? "gateway" : r.source === "python" ? "python" : null;
+  if (!source || (source === BROWSER_SOURCE && r.provenance !== "client-reported")) return null;
   const steps = Array.isArray(r.steps) ? r.steps.filter((s): s is string => typeof s === "string") : [];
   return {
     id: r.id, item: r.item, category: r.category as StoredCategory, bin: r.bin,
     confidence: r.confidence ?? 0, reasoning: r.reasoning, steps, image: r.image,
-    source: r.source === "python" ? "python" : "gateway", createdAt: new Date(r.created_at).getTime(),
+    source, createdAt: new Date(r.created_at).getTime(),
+    provenance: r.provenance ?? "server-classified",
     verifiedCategory: verifiedCats.includes(r.verified_category as VerifiedCategory) ? (r.verified_category as VerifiedCategory) : null,
     feedback: r.feedback ?? null,
   };

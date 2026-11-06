@@ -18,12 +18,14 @@ export type Database = {
         Row: {
           bin: string
           category: string
+          client_request_id: string | null
           confidence: number | null
           created_at: string
           feedback: string | null
           id: string
           image: string
           item: string
+          provenance: string
           reasoning: string
           source: string
           steps: Json
@@ -34,12 +36,14 @@ export type Database = {
         Insert: {
           bin: string
           category: string
+          client_request_id?: string | null
           confidence?: number | null
           created_at?: string
           feedback?: string | null
           id?: string
           image: string
           item: string
+          provenance?: string
           reasoning: string
           source?: string
           steps?: Json
@@ -50,12 +54,14 @@ export type Database = {
         Update: {
           bin?: string
           category?: string
+          client_request_id?: string | null
           confidence?: number | null
           created_at?: string
           feedback?: string | null
           id?: string
           image?: string
           item?: string
+          provenance?: string
           reasoning?: string
           source?: string
           steps?: Json

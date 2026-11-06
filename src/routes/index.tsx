@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Leaf, LogOut, ScanLine, LayoutDashboard, History, BookOpen, Upload, Camera, RotateCcw,
   Loader2, Sparkles, CheckCircle2, Recycle, AlertTriangle, Trash2, Cpu, UserX, HelpCircle, Gauge, Search,
-  Eye, EyeOff, Mail, Lock, X, ImagePlus, ArrowRight, Server, Settings, Clock, ShieldCheck,
+  Eye, EyeOff, Mail, Lock, X, ImagePlus, ArrowRight, Server, Settings, Clock, ShieldCheck, Save,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
@@ -19,8 +19,8 @@ import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
-import { classifyWaste, deleteMyAccount } from "@/lib/classify.functions";
-import { reuseTips, safetyFor, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
+import { classifyWaste, deleteMyAccount, saveBrowserScan } from "@/lib/classify.functions";
+import { BROWSER_SOURCE, reuseTips, safetyFor, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
 import { BINS, rowToScan, stats, type Scan, type ScanRow, type VerifiedCategory } from "@/lib/eco-store";
 import type { LocalPrediction } from "@/lib/model-contract";
 
@@ -68,14 +68,23 @@ function App() {
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [viewing, setViewing] = useState<Scan | null>(null);
   const [confirmBusy, setConfirmBusy] = useState(false);
+  const accountGeneration = useRef(0);
+  const activeAccount = useRef<string | null>(null);
   const deleteAccountFn = useServerFn(deleteMyAccount);
 
   useEffect(() => {
     const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "INITIAL_SESSION" && event !== "USER_UPDATED") return;
+      const nextAccount = session?.user.id ?? null;
+      if (activeAccount.current !== nextAccount) {
+        accountGeneration.current += 1;
+        activeAccount.current = nextAccount;
+        setHistory([]); setViewing(null); setConfirm(null);
+      }
+      const generation = accountGeneration.current;
       setUser(session?.user ?? null);
       setReady(true);
-      if (session?.user) loadHistory().then(setHistory).catch((e) => toast.error((e as Error).message));
+      if (session?.user) loadHistory().then((scans) => { if (accountGeneration.current === generation) setHistory(scans); }).catch((e) => { if (accountGeneration.current === generation) toast.error((e as Error).message); });
       else setHistory([]);
     });
     return () => sub.subscription.unsubscribe();
@@ -124,7 +133,7 @@ function App() {
       <TopNav tab={tab} setTab={go} user={user} onLogout={logout} onDeleteAccount={removeAccount} />
       <main className="mx-auto w-full max-w-6xl px-4 pb-12 pt-5 sm:px-6 sm:pt-8 lg:px-10">
         <div key={tab} className="fade-up">
-          {tab === "scan" && <Scanner onSaved={(s) => setHistory((h) => [s, ...h])} />}
+          {tab === "scan" && <Scanner key={user.id} onSaved={(s) => { if (activeAccount.current === user.id) setHistory((h) => [s, ...h.filter((existing) => existing.id !== s.id)]); }} />}
           {tab === "dashboard" && <Dashboard history={history} />}
           {tab === "history" && <HistoryView history={history} onDelete={removeScan} onClearAll={clearAll} onGoScan={() => go("scan")} onView={setViewing} />}
           {tab === "learn" && <Learn />}
@@ -354,9 +363,14 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
   const [result, setResult] = useState<ScanResult | null>(null);
   const [localResult, setLocalResult] = useState<LocalPrediction | null>(null);
   const [engine, setEngine] = useState<"local" | "online">("local");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const saveRequestRef = useRef<string | null>(null);
   const originalRef = useRef<Blob | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const classify = useServerFn(classifyWaste);
+  const saveLocal = useServerFn(saveBrowserScan);
   const [loading, setLoading] = useState(false);
   const [stage, setStage] = useState(0);
   const [drag, setDrag] = useState(false);
@@ -421,11 +435,12 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
   };
 
   const onFile = (f?: File) => {
-    if (!f || analyzingRef.current) return;
+    if (!f || analyzingRef.current || savingRef.current) return;
     if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) { toast.error("Please choose a JPG, PNG or WebP image."); return; }
     if (f.size > MAX_UPLOAD_BYTES) { toast.error("That image is over 15 MB. Please choose a smaller photo."); return; }
     const operation = ++operationRef.current;
     originalRef.current = f;
+    saveRequestRef.current = null; setSaveError(null);
     setImage(null); setResult(null); setLocalResult(null); setFailure(null);
     const r = new FileReader();
     r.onload = async () => {
@@ -440,11 +455,12 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
   };
 
   const analyze = async (requested: "local" | "online" = "local") => {
-    if (!image || analyzingRef.current) return;
+    if (!image || analyzingRef.current || savingRef.current) return;
     const operation = ++operationRef.current;
     analyzingRef.current = true;
     setEngine(requested);
-    setLoading(true); setFailure(null); setResult(null); setLocalResult(null);
+    setLoading(true); setFailure(null); setResult(null); setLocalResult(null); setSaveError(null);
+    saveRequestRef.current = null;
     try {
       if (requested === "local") {
         const original = originalRef.current;
@@ -453,11 +469,12 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
         const prediction = await classifyLocally(original);
         if (operation !== operationRef.current) return;
         setLocalResult(prediction);
+        saveRequestRef.current = crypto.randomUUID();
         if (prediction.category === "uncertain") toast.warning("Low confidence — please rescan.");
         else toast.success("Local prediction ready — not saved.");
         return;
       }
-      const res = await classify({ data: { image } });
+      const res = await classify({ data: { image, engine: "gateway" } });
       if (operation !== operationRef.current) return;
       onSaved(res);
       setResult(res);
@@ -470,13 +487,34 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
     }
   };
 
+  const savePrediction = async () => {
+    if (!localResult || !image || savingRef.current || analyzingRef.current) return;
+    const requestId = saveRequestRef.current;
+    if (!requestId) return;
+    const operation = operationRef.current;
+    savingRef.current = true;
+    setSaving(true); setSaveError(null);
+    try {
+      const saved = await saveLocal({ data: { image, item: localResult.item, confidence: localResult.confidence, requestId } });
+      if (operation !== operationRef.current) return;
+      onSaved(saved); setResult(saved); setLocalResult(null);
+      toast.success("Scan saved to your history.");
+    } catch (error) {
+      if (operation === operationRef.current) setSaveError(error instanceof Error ? error.message : "Could not save scan. Try again.");
+    } finally {
+      savingRef.current = false;
+      if (operation === operationRef.current) setSaving(false);
+    }
+  };
+
   const reset = () => {
-    if (analyzingRef.current) return;
+    if (analyzingRef.current || savingRef.current) return;
     operationRef.current += 1;
     stopCam();
     setImage(null);
     setResult(null); setLocalResult(null); setFailure(null);
     originalRef.current = null;
+    saveRequestRef.current = null; setSaveError(null);
     if (fileRef.current) fileRef.current.value = "";
   };
 
@@ -486,13 +524,13 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
   return (
     <section>
       <PageHeader title="Scan Waste" sub="Upload or capture a photo — we'll tell you which bin it goes in."
-        action={(result || localResult) && <Button onClick={reset} size="lg" className="fade-up h-11 w-full rounded-xl sm:w-auto"><RotateCcw className="size-4" /> New Scan</Button>} />
+        action={(result || localResult) && <Button onClick={reset} disabled={saving} size="lg" className="fade-up h-11 w-full rounded-xl sm:w-auto"><RotateCcw className="size-4" /> New Scan</Button>} />
 
       <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
         <div className="glass min-w-0 rounded-3xl p-4 sm:p-6">
           <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-muted p-1" role="tablist" aria-label="Image source">
             {(["upload", "camera"] as const).map((m) => (
-              <button type="button" role="tab" aria-selected={mode === m} disabled={loading} key={m} onClick={() => switchMode(m)}
+              <button type="button" role="tab" aria-selected={mode === m} disabled={loading || saving} key={m} onClick={() => switchMode(m)}
                 className={`flex h-11 items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all disabled:opacity-50 ${mode === m ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>
                 {m === "upload" ? <Upload className="size-4" /> : <Camera className="size-4" />}
                 {m === "upload" ? "Upload Photo" : "Use Camera"}
@@ -524,7 +562,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
               </button>
             )}
             {image && !loading && !result && (
-              <Button type="button" variant="secondary" size="icon" onClick={reset} aria-label="Remove image" className="absolute right-3 top-3 size-10 rounded-full shadow-md"><X className="size-4" /></Button>
+              <Button type="button" variant="secondary" size="icon" onClick={reset} disabled={saving} aria-label="Remove image" className="absolute right-3 top-3 size-10 rounded-full shadow-md"><X className="size-4" /></Button>
             )}
             {loading && (
               <div className="absolute inset-0 bg-foreground/30 backdrop-blur-[2px]" role="status" aria-live="polite">
@@ -553,7 +591,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
                 {loading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />} {loading ? "Analyzing…" : "Analyze Waste"}
               </Button>
             )}
-            {image && !result && !loading && (
+            {image && !result && !loading && !saving && (
               <Button variant="outline" className="h-12 rounded-xl" onClick={() => mode === "camera" ? (setImage(null), void startCam()) : fileRef.current?.click()}>
                 {mode === "camera" ? <Camera className="size-4" /> : <Upload className="size-4" />} {mode === "camera" ? "Retake" : "Replace"}
               </Button>
@@ -561,17 +599,17 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
           </div>
           {image && !result && (
             <div className="mt-4 border-t border-border pt-4">
-              <p className="text-xs text-muted-foreground">MobileNetV3 runs on this device. Local predictions are unverified and not saved.</p>
-              <Button variant="outline" className="mt-3 h-auto min-h-11 w-full whitespace-normal rounded-xl py-2" disabled={loading} onClick={() => void analyze("online")}>
-                <Server className="size-4 shrink-0" /> Classify and save online
+              <p className="text-xs text-muted-foreground">Primary engine: MobileNetV3-Small (ONNX Browser)</p>
+              <Button variant="outline" className="mt-3 h-auto min-h-11 w-full whitespace-normal rounded-xl py-2" disabled={loading || saving} onClick={() => void analyze("online")}>
+                <Server className="size-4 shrink-0" /> Use Lovable AI Gateway
               </Button>
-              <p className="mt-2 text-xs text-muted-foreground">Sends this photo to the configured online classifier (Lovable AI Gateway unless a Python service is configured). Never switches automatically.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Explicit alternative: sends the photo online and saves a separately labelled Gateway result. No automatic fallback.</p>
             </div>
           )}
         </div>
 
         <div className="min-w-0">
-          {result ? <ResultCard r={result} /> : localResult ? <ResultCard r={localResult} /> : failure ? (
+          {result ? <ResultCard r={result} /> : localResult ? <ResultCard r={localResult} onSave={() => void savePrediction()} saving={saving} saveError={saveError} /> : failure ? (
             <div role="alert" className="fade-up flex h-full min-h-72 flex-col items-center justify-center rounded-3xl border-2 border-destructive/30 bg-destructive/5 p-8 text-center">
               <span className="grid size-16 place-items-center rounded-full bg-destructive/10"><AlertTriangle className="size-8 text-destructive" /></span>
               <p className="mt-4 text-lg font-semibold text-destructive">Analysis failed</p>
@@ -608,12 +646,13 @@ function CategoryBadge({ c, compact = false }: { c: ScanResult["category"]; comp
   );
 }
 
-function ResultCard({ r }: { r: ScanResult | LocalPrediction }) {
+export function ResultCard({ r, onSave, saving = false, saveError }: { r: ScanResult | LocalPrediction; onSave?: () => void; saving?: boolean; saveError?: string | null }) {
   const unsure = r.category === "uncertain";
   const b = BINS[r.category];
   const Icon = CAT_ICON[r.category];
   const warnings = safetyFor(r.category, r.item);
-  const local = r.source === "mobilenet-browser";
+  const preview = r.source === "mobilenet-browser";
+  const local = preview || r.source === BROWSER_SOURCE;
   const confLabel = local ? "Prediction confidence" : r.source === "python" ? "Service-reported confidence" : "AI-estimated confidence";
   return (
     <div className={`fade-up overflow-hidden rounded-3xl border bg-card shadow-sm ${unsure ? "border-warning" : "border-border"}`}>
@@ -651,8 +690,11 @@ function ResultCard({ r }: { r: ScanResult | LocalPrediction }) {
         </ol>
         <div className="mt-5 rounded-2xl border border-border p-4 text-sm"><p className="mb-1 flex items-center gap-1.5 font-semibold"><Recycle className="size-4 text-primary" /> Reuse &amp; recycling</p><p className="text-muted-foreground">{reuseTips[r.category]}</p></div>
         <div className="mt-5 border-t border-border pt-4 text-xs text-muted-foreground">
-          <p className="flex items-start gap-1.5"><Server className="size-3.5 shrink-0" /> Engine: {local ? "Trained MobileNetV3-Small · Browser ONNX" : r.source === "python" ? "Python classifier service — underlying engine not recorded" : "Lovable AI Gateway"}</p>
-          <p className="mt-2 flex items-center gap-1.5">{local ? <><ShieldCheck className="size-3.5 shrink-0" /> Unverified local preview · Not saved to history</> : <><CheckCircle2 className="size-3.5 shrink-0 text-primary" /> Saved to history</>}</p>
+          <p className="flex items-start gap-1.5"><Server className="size-3.5 shrink-0" /> Engine: {local ? BROWSER_SOURCE : r.source === "python" ? "Python classifier service — underlying engine not recorded" : "Lovable AI Gateway"}</p>
+          {local && <p className="mt-2 flex items-start gap-1.5"><ShieldCheck className="size-3.5 shrink-0" /> Browser-reported prediction · Model execution not independently verified</p>}
+          <p className="mt-2 flex items-center gap-1.5">{preview ? "Not saved to history" : <><CheckCircle2 className="size-3.5 shrink-0 text-primary" /> Saved to history</>}</p>
+          {preview && onSave && <><p className="mt-3">Saving uploads this photo and prediction to your private account history.</p><Button className="mt-4 h-12 w-full rounded-xl" disabled={saving} onClick={onSave}>{saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}{saving ? "Saving…" : "Save Scan"}</Button></>}
+          {saveError && <p role="alert" className="mt-3 text-sm text-destructive">{saveError}</p>}
         </div>
       </div>
     </div>
@@ -704,7 +746,7 @@ function Dashboard({ history }: { history: Scan[] }) {
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-3 sm:gap-4">
         <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Active days</p><p className="mt-1 text-2xl font-bold">{days}</p><p className="text-xs text-muted-foreground">Days you scanned at least once</p></div>
-        <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Avg. AI confidence</p><p className="mt-1 text-2xl font-bold">{s.total - s.uncertain ? `${s.avgConfidence}%` : "—"}</p><p className="text-xs text-muted-foreground">Confident results only</p></div>
+        <div className="glass rounded-3xl p-5"><p className="text-sm text-muted-foreground">Avg. prediction confidence</p><p className="mt-1 text-2xl font-bold">{s.total - s.uncertain ? `${s.avgConfidence}%` : "—"}</p><p className="text-xs text-muted-foreground">Confident results only · not measured accuracy</p></div>
         <div className="glass rounded-3xl p-5"><p className="flex items-center gap-1.5 text-sm text-muted-foreground"><ShieldCheck className="size-4" /> Pilot accuracy</p><p className="mt-1 text-2xl font-bold">{s.pilotAccuracy === null ? "—" : `${s.pilotAccuracy}%`}</p><p className="text-xs text-muted-foreground">{s.verified ? `${s.verifiedCorrect} of ${s.verified} scans you checked were right` : "Open a scan in History and mark the real category"}</p></div>
       </div>
     </section>
@@ -801,7 +843,7 @@ function HistoryView({ history, onDelete, onClearAll, onGoScan, onView }: { hist
         </div>
       )}
       {history.length === 0 ? (
-        <EmptyState icon={History} title="Your history is empty" body="Online classifications are saved here. Unverified local predictions are not saved."
+        <EmptyState icon={History} title="Your history is empty" body="Save a browser prediction or run an online classification to add it to your private history."
           action={<Button onClick={onGoScan} className="glow h-11 rounded-xl"><ScanLine className="size-4" /> Scan Waste</Button>} />
       ) : shown.length === 0 ? (
         <div className="mt-5"><EmptyState icon={Search} title="No matches" body="No scans match your search or filter."
@@ -821,6 +863,7 @@ function HistoryView({ history, onDelete, onClearAll, onGoScan, onView }: { hist
               <div className="flex flex-1 flex-col p-4 sm:p-5">
                 <h3 className="font-semibold">{h.item}</h3>
                 <p className="text-sm font-medium text-primary">{h.bin}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Engine: {h.source === BROWSER_SOURCE ? BROWSER_SOURCE : h.source === "gateway" ? "Lovable AI Gateway" : "Python classifier service"}</p>
                 <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                   {h.steps.slice(0, 3).map((s, i) => <li key={i} className="flex gap-2"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />{s}</li>)}
                 </ul>
@@ -895,8 +938,8 @@ function Learn() {
       <div className="mt-8 rounded-2xl border border-border bg-card p-5 text-sm">
         <p className="flex items-center gap-2 font-semibold"><Server className="size-4 text-primary" /> What the scanner can recognise</p>
         <ul className="mt-2 space-y-1.5 text-muted-foreground">
-          <li><strong className="text-foreground">Built-in vision AI (active now):</strong> a general vision model sorts any photo into the five categories. Its confidence is self-reported, so treat results as guidance and check local rules.</li>
-          <li><strong className="text-foreground">Local trained model (optional, not deployed yet):</strong> with the default TrashNet dataset it only covers recyclable and residual items. With the 12-class dataset, "hazardous" means batteries only — it does not detect chemicals, medicines or aerosols.</li>
+          <li><strong className="text-foreground">MobileNetV3-Small (primary):</strong> the trained 13-class browser model maps battery, biological, glass, cardboard, clothes, e-waste, metal, paper, plastic, shoes and trash to five categories. Hazardous coverage is batteries, not chemicals, medicines or aerosols.</li>
+          <li><strong className="text-foreground">Lovable AI Gateway (explicit alternative):</strong> online vision classification, separately labelled in history. Neither engine's prediction confidence is measured accuracy; confirm local disposal rules.</li>
         </ul>
       </div>
     </section>

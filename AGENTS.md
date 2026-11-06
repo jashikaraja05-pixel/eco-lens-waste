@@ -9,8 +9,9 @@
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
 - Accounts use Lovable Cloud auth and scans live in the `scans` table with owner-only RLS; never store credentials or history in browser storage.
-- Classification runs only in the authenticated `classifyWaste` server function, which also saves the row, so clients cannot forge results.
-- Browser ONNX predictions are ephemeral, explicitly unverified previews; only the existing authenticated server classification saves history, because client logits cannot prove model execution.
+- Trusted server classification runs in authenticated classifyWaste; direct database INSERT is revoked so clients cannot forge server-classified results.
+- Explicit browser saves run in authenticated saveBrowserScan with server-derived ownership, engine, category, threshold and guidance; provenance stays client-reported because browser logits cannot prove model execution.
+- Only authenticated, validated saving handlers may use admin inserts; history reads, deletes and feedback updates retain owner-only RLS, and browser retry IDs are unique per owner to avoid duplicates.
 - Export model assets from the saved checkpoint with backend/export_onnx.py and parity-check preprocessing against waste_model.py; never hand-edit class order or invent model weights.
 - Keep WASM binaries or their large-asset pointers under public/wasm and load explicit URLs only during browser actions; runtime loaders must not use source imports or import.meta-relative binary URLs because they break server deployment.
 - Bin text, per-result safety notes (`safetyFor`) and the uncertainty threshold are owned by scan-schema.ts; the Python service in `backend/` mirrors them in common.py and is used when `PYTHON_CLASSIFIER_URL` is set.
