@@ -18,6 +18,15 @@
 - [x] README rewritten for judges (no invented metrics/URLs)
 - [x] Run frontend tests, backend tests, build, E2E scan, mobile check
 - [ ] Connect GitHub for this project — blocked on user (Lovable creates a new repo; can't attach the existing ECO-LENSAI repo)
-- [ ] Run dataset download + training + evaluation (needs GPU/torch environment) — blocked on user
-- [ ] Deploy the trained Python service and set PYTHON_CLASSIFIER_URL — blocked on user hosting
+- [x] Inspect supplied trained checkpoint and recorded evaluation (original held-out split unavailable)
+- [x] Replace external-host requirement with browser ONNX; legacy Python service remains optional
 - [ ] Publish the app and add the live URL to README — needs user
+
+# Browser model integration (6 Nov 2026)
+- [x] Inspect checkpoint, evaluation preprocessing, class mapping and authenticated scan workflow
+- [x] Export the real checkpoint to ONNX and verify numerical parity
+- [x] Implement and test browser inference without accepting browser results as authoritative saved scans
+- [x] Verify browser inference with 26 original images from all 13 classes; preserve actual mistakes in report
+- [x] Report changed files, unsaved-local trust boundary and verification limitations
+- [ ] Verify published model/codec assets and hosted browser policy — requires publishing
+- [ ] Independently reproduce held-out accuracy and representative whole-device e-waste performance — requires original split and labelled images

@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { classifyWaste, deleteMyAccount } from "@/lib/classify.functions";
 import { reuseTips, safetyFor, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
 import { BINS, rowToScan, stats, type Scan, type ScanRow, type VerifiedCategory } from "@/lib/eco-store";
+import type { LocalPrediction } from "@/lib/model-contract";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -345,11 +346,15 @@ function shrink(src: string, max = 768): Promise<string> {
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
 const STAGES = ["Uploading image", "Detecting the item", "Matching segregation rules"];
+const LOCAL_STAGES = ["Loading trained model", "Preparing image locally", "Running MobileNetV3"];
 
 function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
   const [mode, setMode] = useState<"upload" | "camera">("upload");
   const [image, setImage] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [localResult, setLocalResult] = useState<LocalPrediction | null>(null);
+  const [engine, setEngine] = useState<"local" | "online">("local");
+  const originalRef = useRef<Blob | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const classify = useServerFn(classifyWaste);
   const [loading, setLoading] = useState(false);
@@ -407,7 +412,11 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
     const context = c.getContext("2d");
     if (!context || !v.videoWidth || !v.videoHeight) { toast.error("Camera is not ready yet."); return; }
     context.drawImage(v, 0, 0);
-    setImage(await shrink(c.toDataURL("image/jpeg", 0.9)));
+    const captured = c.toDataURL("image/jpeg", 0.9);
+    const { capturedImageBlob } = await import("@/lib/classifier.browser");
+    originalRef.current = capturedImageBlob(captured);
+    setImage(await shrink(captured));
+    setLocalResult(null); setResult(null); setFailure(null);
     stopCam();
   };
 
@@ -416,7 +425,8 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
     if (!["image/jpeg", "image/png", "image/webp"].includes(f.type)) { toast.error("Please choose a JPG, PNG or WebP image."); return; }
     if (f.size > MAX_UPLOAD_BYTES) { toast.error("That image is over 15 MB. Please choose a smaller photo."); return; }
     const operation = ++operationRef.current;
-    setImage(null); setResult(null); setFailure(null);
+    originalRef.current = f;
+    setImage(null); setResult(null); setLocalResult(null); setFailure(null);
     const r = new FileReader();
     r.onload = async () => {
       try {
@@ -429,12 +439,24 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
     r.readAsDataURL(f);
   };
 
-  const analyze = async () => {
+  const analyze = async (requested: "local" | "online" = "local") => {
     if (!image || analyzingRef.current) return;
     const operation = ++operationRef.current;
     analyzingRef.current = true;
-    setLoading(true); setFailure(null);
+    setEngine(requested);
+    setLoading(true); setFailure(null); setResult(null); setLocalResult(null);
     try {
+      if (requested === "local") {
+        const original = originalRef.current;
+        if (!original) throw new Error("Choose or capture an image first.");
+        const { classifyLocally } = await import("@/lib/classifier.browser");
+        const prediction = await classifyLocally(original);
+        if (operation !== operationRef.current) return;
+        setLocalResult(prediction);
+        if (prediction.category === "uncertain") toast.warning("Low confidence — please rescan.");
+        else toast.success("Local prediction ready — not saved.");
+        return;
+      }
       const res = await classify({ data: { image } });
       if (operation !== operationRef.current) return;
       onSaved(res);
@@ -453,16 +475,18 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
     operationRef.current += 1;
     stopCam();
     setImage(null);
-    setResult(null); setFailure(null);
+    setResult(null); setLocalResult(null); setFailure(null);
+    originalRef.current = null;
     if (fileRef.current) fileRef.current.value = "";
   };
 
   const switchMode = (m: "upload" | "camera") => { reset(); setMode(m); };
+  const activeStages = engine === "local" ? LOCAL_STAGES : STAGES;
 
   return (
     <section>
       <PageHeader title="Scan Waste" sub="Upload or capture a photo — we'll tell you which bin it goes in."
-        action={result && <Button onClick={reset} size="lg" className="fade-up h-11 w-full rounded-xl sm:w-auto"><RotateCcw className="size-4" /> New Scan</Button>} />
+        action={(result || localResult) && <Button onClick={reset} size="lg" className="fade-up h-11 w-full rounded-xl sm:w-auto"><RotateCcw className="size-4" /> New Scan</Button>} />
 
       <div className="grid gap-5 lg:grid-cols-2 lg:gap-6">
         <div className="glass min-w-0 rounded-3xl p-4 sm:p-6">
@@ -506,9 +530,9 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
               <div className="absolute inset-0 bg-foreground/30 backdrop-blur-[2px]" role="status" aria-live="polite">
                 <div className="scan-line absolute inset-x-6 h-0.5 rounded-full bg-primary shadow-[0_0_16px_2px] shadow-primary" />
                 <div className="absolute inset-x-3 bottom-3 rounded-2xl bg-card p-4 shadow-lg sm:inset-x-6 sm:bottom-6">
-                  <p className="flex items-center gap-2 text-sm font-semibold"><Loader2 className="size-4 animate-spin text-primary" /> {STAGES[stage]}…</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold"><Loader2 className="size-4 animate-spin text-primary" /> {activeStages[stage]}…</p>
                   <div className="mt-3 grid grid-cols-3 gap-1.5">
-                    {STAGES.map((s, i) => <span key={s} className={`h-1.5 rounded-full transition-colors duration-500 ${i <= stage ? "bg-primary" : "bg-muted"}`} />)}
+                    {activeStages.map((s, i) => <span key={s} className={`h-1.5 rounded-full transition-colors duration-500 ${i <= stage ? "bg-primary" : "bg-muted"}`} />)}
                   </div>
                   <p className="mt-2 text-xs text-muted-foreground">This usually takes a few seconds.</p>
                 </div>
@@ -524,8 +548,8 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
                 <Button variant="outline" className="h-12 rounded-xl" onClick={stopCam}>Stop Camera</Button>
               </>
             )}
-            {image && !result && (
-              <Button className="glow h-12 flex-1 rounded-xl text-base" onClick={analyze} disabled={loading}>
+            {image && !result && !localResult && (
+              <Button className="glow h-12 flex-1 rounded-xl text-base" onClick={() => void analyze("local")} disabled={loading}>
                 {loading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />} {loading ? "Analyzing…" : "Analyze Waste"}
               </Button>
             )}
@@ -535,16 +559,25 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
               </Button>
             )}
           </div>
+          {image && !result && (
+            <div className="mt-4 border-t border-border pt-4">
+              <p className="text-xs text-muted-foreground">MobileNetV3 runs on this device. Local predictions are unverified and not saved.</p>
+              <Button variant="outline" className="mt-3 h-auto min-h-11 w-full whitespace-normal rounded-xl py-2" disabled={loading} onClick={() => void analyze("online")}>
+                <Server className="size-4 shrink-0" /> Classify and save online
+              </Button>
+              <p className="mt-2 text-xs text-muted-foreground">Sends this photo to the configured online classifier (Lovable AI Gateway unless a Python service is configured). Never switches automatically.</p>
+            </div>
+          )}
         </div>
 
         <div className="min-w-0">
-          {result ? <ResultCard r={result} /> : failure ? (
+          {result ? <ResultCard r={result} /> : localResult ? <ResultCard r={localResult} /> : failure ? (
             <div role="alert" className="fade-up flex h-full min-h-72 flex-col items-center justify-center rounded-3xl border-2 border-destructive/30 bg-destructive/5 p-8 text-center">
               <span className="grid size-16 place-items-center rounded-full bg-destructive/10"><AlertTriangle className="size-8 text-destructive" /></span>
               <p className="mt-4 text-lg font-semibold text-destructive">Analysis failed</p>
               <p className="mt-1 max-w-xs text-sm text-muted-foreground">{failure}</p>
               <p className="mt-2 text-xs text-muted-foreground">No result was saved.</p>
-              <Button variant="outline" className="mt-5 h-11 rounded-xl" onClick={analyze} disabled={!image || loading}><RotateCcw className="size-4" /> Try again</Button>
+              <Button variant="outline" className="mt-5 h-11 rounded-xl" onClick={() => void analyze(engine)} disabled={!image || loading}><RotateCcw className="size-4" /> Try again</Button>
             </div>
           ) : (
             <div className="glass bg-soft flex h-full min-h-72 flex-col items-center justify-center rounded-3xl p-8 text-center">
@@ -575,12 +608,13 @@ function CategoryBadge({ c, compact = false }: { c: ScanResult["category"]; comp
   );
 }
 
-function ResultCard({ r }: { r: ScanResult }) {
+function ResultCard({ r }: { r: ScanResult | LocalPrediction }) {
   const unsure = r.category === "uncertain";
   const b = BINS[r.category];
   const Icon = CAT_ICON[r.category];
   const warnings = safetyFor(r.category, r.item);
-  const confLabel = r.source === "python" ? "Model confidence" : "AI-estimated confidence";
+  const local = r.source === "mobilenet-browser";
+  const confLabel = local ? "Prediction confidence" : r.source === "python" ? "Service-reported confidence" : "AI-estimated confidence";
   return (
     <div className={`fade-up overflow-hidden rounded-3xl border bg-card shadow-sm ${unsure ? "border-warning" : "border-border"}`}>
       <div className={`${unsure ? "bg-warning-soft text-warning-foreground" : `${b.tone} text-primary-foreground`} flex items-center gap-4 p-5 sm:p-6`}>
@@ -606,7 +640,7 @@ function ResultCard({ r }: { r: ScanResult }) {
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-muted" role="progressbar" aria-valuenow={r.confidence} aria-valuemin={0} aria-valuemax={100} aria-label={confLabel}>
             <div className={`${unsure ? "bg-warning" : "bg-ocean"} h-full rounded-full transition-all duration-700`} style={{ width: `${r.confidence}%` }} />
           </div>
-          {r.source !== "python" && <p className="mt-1.5 text-xs text-muted-foreground">Reported by the vision AI itself — not a measured accuracy.</p>}
+          <p className="mt-1.5 text-xs text-muted-foreground">{local ? "Model softmax score — not measured accuracy." : r.source === "python" ? "Reported by the classifier service — not measured accuracy." : "Reported by the vision AI itself — not measured accuracy."}</p>
         </div>
         <div className="mt-5 rounded-2xl bg-secondary p-4 text-sm"><p className="mb-1 font-semibold">Why this bin?</p><p className="text-secondary-foreground">{r.reasoning}</p></div>
         <p className="mt-5 font-semibold">Disposal guidance</p>
@@ -616,7 +650,10 @@ function ResultCard({ r }: { r: ScanResult }) {
           ))}
         </ol>
         <div className="mt-5 rounded-2xl border border-border p-4 text-sm"><p className="mb-1 flex items-center gap-1.5 font-semibold"><Recycle className="size-4 text-primary" /> Reuse &amp; recycling</p><p className="text-muted-foreground">{reuseTips[r.category]}</p></div>
-        <p className="mt-5 flex items-center gap-1.5 border-t border-border pt-4 text-xs text-muted-foreground"><Server className="size-3.5" /> Engine: {r.source === "python" ? "Python FastAPI service" : "Built-in vision AI (Lovable AI Gateway)"} · <CheckCircle2 className="size-3.5 text-primary" /> Saved to history</p>
+        <div className="mt-5 border-t border-border pt-4 text-xs text-muted-foreground">
+          <p className="flex items-start gap-1.5"><Server className="size-3.5 shrink-0" /> Engine: {local ? "Trained MobileNetV3-Small · Browser ONNX" : r.source === "python" ? "Python classifier service — underlying engine not recorded" : "Lovable AI Gateway"}</p>
+          <p className="mt-2 flex items-center gap-1.5">{local ? <><ShieldCheck className="size-3.5 shrink-0" /> Unverified local preview · Not saved to history</> : <><CheckCircle2 className="size-3.5 shrink-0 text-primary" /> Saved to history</>}</p>
+        </div>
       </div>
     </div>
   );
@@ -764,7 +801,7 @@ function HistoryView({ history, onDelete, onClearAll, onGoScan, onView }: { hist
         </div>
       )}
       {history.length === 0 ? (
-        <EmptyState icon={History} title="Your history is empty" body="Scans you analyze are saved here automatically, so you can look back at how you sorted each item."
+        <EmptyState icon={History} title="Your history is empty" body="Online classifications are saved here. Unverified local predictions are not saved."
           action={<Button onClick={onGoScan} className="glow h-11 rounded-xl"><ScanLine className="size-4" /> Scan Waste</Button>} />
       ) : shown.length === 0 ? (
         <div className="mt-5"><EmptyState icon={Search} title="No matches" body="No scans match your search or filter."

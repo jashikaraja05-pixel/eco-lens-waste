@@ -22,11 +22,13 @@ random, fabricated or hardcoded.
 | Dataset | Source | Licence | Classes | Coverage |
 |---|---|---|---|---|
 | TrashNet (default) | github.com/garythung/trashnet | MIT (c) 2017 Gary Thung — verified in repo LICENSE | cardboard, glass, metal, paper, plastic, trash (2,527 images) | recyclable, residual only |
-| Garbage Classification 12 classes | kaggle.com/datasets/mostafaabla/garbage-classification | check the Kaggle page before redistribution | 12 classes, 15,150 images | adds biological (organic), battery (hazardous), e-waste |
+| Garbage Classification 12 classes | kaggle.com/datasets/mostafaabla/garbage-classification | check the Kaggle page before redistribution | 12 classes, 15,150 images | adds biological (organic) and battery (hazardous); no e-waste class |
+| GIZ E-Waste Database | huggingface.co/datasets/GIZ/E-Waste-Database | CC BY 4.0; preserve attribution | e-waste | electronics; must be added separately |
 
 **Category mapping** (`prepare_dataset.py`): TrashNet glass/paper/cardboard/plastic/metal →
 recyclable, trash → residual. Garbage12 additionally maps biological → organic,
-battery → hazardous, e-waste → ewaste, clothes/shoes/trash → residual.
+battery → hazardous, clothes/shoes/trash → residual. The saved 13-class config
+adds a separate e-waste class mapped to ewaste; Garbage12 alone does not provide it.
 
 **Limitations (honest scope):**
 - TrashNet contains no organic, hazardous or e-waste images — a TrashNet-only
@@ -65,12 +67,62 @@ cd backend && uvicorn main:app --port 8000
 cd backend && pytest tests/ -q
 ```
 
-Training and evaluation are **not yet run** for this project — until `train.py`
-has completed, `/health` reports `engine: gateway-fallback` (if `AI_API_KEY`
-is set) or `none`, and `evaluate.py` refuses to produce metrics. Do not quote
-accuracy numbers before step 4 has produced them.
+The supplied `models/best.pt` is a real 13-output MobileNetV3-Small checkpoint.
+Its recorded evaluation report states 96.6% on 2,438 held-out images; the original
+split/images are not available here, so that report has not been independently
+reproduced. It is not a browser accuracy claim or per-image confidence.
 
-## Deployment (external host — the Lovable app calls this over HTTPS)
+## Browser ONNX (no Python hosting required)
+
+The app runs the genuine exported checkpoint in the browser using ONNX Runtime
+Web 1.22.0, single-threaded WASM with same-origin model/runtime files. Python is
+used only for one-time conversion. No external Python API is required.
+
+```bash
+pip install torch torchvision onnx onnxruntime numpy pillow
+python backend/export_onnx.py --output public/models/mobilenet-v3-small.onnx
+```
+
+The script writes the real FP32 ONNX and matching JSON manifest, validates the
+graph, hashes the checkpoint/model and compares logits against PyTorch.
+Do not replace the checkpoint or edit the manifest's index order by hand.
+
+Evaluation preprocessing is RGB decode without EXIF rotation, bilinear short-edge
+resize to **257**, center crop **224** using Python ties-to-even offsets,
+float32 RGB/NCHW `/255`, then mean `[0.485, 0.456, 0.406]` and std
+`[0.229, 0.224, 0.225]`. JPEG and WebP decode through bundled codecs rather than
+canvas; PNG alpha is discarded like Pillow. The resize implementation matches
+Pillow's separable bilinear filter and fixed-point rounding. Reference tests
+compare complete tensors, not just dimensions. Apply softmax to all 13 logits;
+round confidence as Python does, then apply the existing **below 55%** rule.
+
+**Trust and saving:** “Analyze Waste” produces an explicitly unverified local
+preview with safety/bin guidance. It does not upload the image, create a history
+row or affect dashboard statistics. A separate “Classify and save online” action
+explicitly sends the image through the existing authenticated `classifyWaste`
+workflow. Gateway results are saved and identified as Gateway, not MobileNet.
+Existing optional Python routing is unchanged. No failure automatically switches
+engine. Browser predictions cannot prove their origin to the server; persisting
+client logits as authoritative would weaken the existing trust requirement.
+
+**Verified 6 November 2026:** 26 original images, two from each of the 13 classes,
+ran in Chromium through the actual browser ONNX engine. All 26 predicted labels
+and rounded confidence scores matched PyTorch. Three images were misclassified
+relative to dataset labels (one biological and both e-waste label close-ups),
+and PyTorch made the same mistakes. This is a parity/demo check, **not held-out
+accuracy**. Eight image-format/EXIF/transparency fixtures produced byte-identical
+evaluation tensors. Authenticated upload, explicit Gateway save/history reload,
+camera inference, phone layout and asset-failure handling were also checked.
+See `docs/browser-model-verification.json` for source attribution and outcomes.
+
+Limitations: e-waste samples are label close-ups, not adequate whole-device
+recognition tests; real-world quality and hosted CSP/asset loading after publish
+remain unverified. Model assets are public and downloadable, as required for
+browser inference. Dataset rights need review before redistributing model assets.
+
+## Optional legacy Python service deployment
+
+This is not needed for browser ONNX and is not part of the requested integration.
 
 1. Train the model (steps 2–4) and keep `models/` alongside the code.
 2. Deploy `backend/` (Dockerfile included) to any host: Render, Fly.io,

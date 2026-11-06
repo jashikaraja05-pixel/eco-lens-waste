@@ -1,0 +1,129 @@
+{
+  "arch": "mobilenet_v3_small",
+  "num_classes": 13,
+  "classes": [
+    "battery",
+    "biological",
+    "brown-glass",
+    "cardboard",
+    "clothes",
+    "e-waste",
+    "green-glass",
+    "metal",
+    "paper",
+    "plastic",
+    "shoes",
+    "trash",
+    "white-glass"
+  ],
+  "idx_to_class": {
+    "0": "battery",
+    "1": "biological",
+    "2": "brown-glass",
+    "3": "cardboard",
+    "4": "clothes",
+    "5": "e-waste",
+    "6": "green-glass",
+    "7": "metal",
+    "8": "paper",
+    "9": "plastic",
+    "10": "shoes",
+    "11": "trash",
+    "12": "white-glass"
+  },
+  "class_to_category": {
+    "battery": "hazardous",
+    "biological": "organic",
+    "brown-glass": "recyclable",
+    "green-glass": "recyclable",
+    "white-glass": "recyclable",
+    "cardboard": "recyclable",
+    "clothes": "residual",
+    "e-waste": "ewaste",
+    "metal": "recyclable",
+    "paper": "recyclable",
+    "plastic": "recyclable",
+    "shoes": "residual",
+    "trash": "residual"
+  },
+  "image_size": 224,
+  "normalization": {
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "uncertain_threshold": 55,
+  "dataset_name": "garbage_classification",
+  "dataset_licences": {
+    "trashnet": "MIT (c) 2017 Gary Thung \u2014 github.com/garythung/trashnet/LICENSE",
+    "garbage12": "Kaggle mostafaabla/garbage-classification (12 classes, NO e-waste class) \u2014 check licence on Kaggle before redistribution",
+    "giz_ewaste": "CC BY 4.0 \u2014 huggingface.co/datasets/GIZ/E-Waste-Database (all images are e-waste)"
+  },
+  "trained_at": "2026-11-06T06:29:28Z",
+  "model_file": "mobilenet-v3-small.onnx",
+  "model_sha256": "80d8ccfd6f588e74a0b0616bf55f57490a28394cff19196bbe55e618b32815bd",
+  "checkpoint_sha256": "8fc8b77153be1946a320119c032120b6086ab493efadaad4aff5292d05d72fb9",
+  "input_name": "image",
+  "output_name": "logits",
+  "opset": 17,
+  "preprocessing": {
+    "resize_short_edge": 257,
+    "crop_size": 224,
+    "interpolation": "pillow-bilinear",
+    "center_rounding": "ties-to-even",
+    "channel_order": "RGB",
+    "layout": "NCHW",
+    "scale": 255,
+    "exif_transpose": false
+  },
+  "disposal_steps": {
+    "organic": [
+      "Keep food and garden waste separate from dry and hazardous waste.",
+      "Place it in the green wet-waste bin without plastic wrapping.",
+      "Compost at home if possible, or hand it to the municipal wet-waste collector."
+    ],
+    "recyclable": [
+      "Empty and rinse the item so no food residue remains.",
+      "Keep it dry and separate from wet waste.",
+      "Place it in the blue dry-recyclable bin; flatten cardboard if possible."
+    ],
+    "hazardous": [
+      "Do not crush, burn or mix with regular household waste.",
+      "Keep the item in its original container if possible.",
+      "Hand it over at the municipal hazardous-waste depot or a collection drive."
+    ],
+    "ewaste": [
+      "Do not bin it with household waste.",
+      "Erase personal data if the item stores any.",
+      "Drop it at an authorised e-waste collection point or manufacturer take-back."
+    ],
+    "residual": [
+      "Ensure the item cannot be recycled or composted.",
+      "Bag it to prevent littering.",
+      "Place it in the black residual (non-recyclable) bin."
+    ],
+    "uncertain": [
+      "Retake the photo in good light with only one item in frame.",
+      "If still unsure, keep it aside and check your municipality's segregation guide."
+    ]
+  },
+  "export_versions": {
+    "torch": "2.9.0+cpu",
+    "torchvision": "0.24.0+cpu",
+    "pillow": "13.0.0",
+    "onnx": "1.19.1"
+  },
+  "export_check": {
+    "max_absolute_logit_difference": 1.430511474609375e-05,
+    "rtol": 0.0001,
+    "atol": 0.0001,
+    "note": "Tensor parity only; not image accuracy or all-class browser verification."
+  }
+}
