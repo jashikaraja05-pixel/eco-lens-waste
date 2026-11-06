@@ -64,7 +64,7 @@ export function predictionFromViews(views: ReadonlyArray<readonly number[] | Flo
 export function unreliable(base: LocalPrediction, manifest: ModelManifest): LocalPrediction {
   const normalized = normalizePrediction({ item: base.item, category: "uncertain", confidence: base.confidence,
     reasoning: `MobileNetV3-Small leaned towards '${base.item}' (${base.confidence}% prediction confidence), but alternate views of the photo disagreed or were not confident enough, so no bin is recommended. Not measured accuracy.`,
-    steps: manifest.disposal_steps.uncertain ?? [] }, "python");
+    steps: manifest.disposal_steps["uncertain"] ?? [] }, "python");
   return { ...normalized, source: "mobilenet-browser", saved: false, trust: "unverified", reliable: false };
 }
 
