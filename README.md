@@ -72,8 +72,23 @@ The project also includes a separately trained 13-class MobileNetV3-Small model 
 
 ## 5. System Architecture
 
-ECO-LENS-AI uses a web-based architecture with an AI-powered waste classification workflow.
+flowchart TD
+    A[User] --> B[ECO-LENS-AI Web Application]
+    B --> C[Authentication - Supabase]
+    B --> D[Waste Image Upload]
+    D --> E[Lovable AI Gateway]
+    E --> F[Waste Classification]
+    F --> G[13 Waste Categories]
+    G --> H[AI Result and Confidence]
+    H --> I[Bin Recommendation]
+    H --> J[Disposal Guidance]
+    I --> K[Dashboard and Scan History]
+    J --> K
 
+    L[Separately Trained PyTorch Model] -.-> M[FastAPI Classification Service]
+    M -. Not yet deployed or connected to live app .-> B
+
+    
 ### Currently Deployed Application
 
 - Frontend and application services are hosted through Lovable Cloud.
