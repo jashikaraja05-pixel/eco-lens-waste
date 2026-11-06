@@ -70,11 +70,13 @@ The project also includes a separately trained 13-class MobileNetV3-Small model 
 - **Learn Hub:** Provide waste management guides, recycling information, composting guidance, and battery/e-waste safety information.
 - **Optional Python Backend:** Includes a FastAPI service and a separately trained PyTorch model.
 
-## 5. System Architecture
+## 5. System architecture
+
+```mermaid
 
 flowchart TD
     A[User] --> B[ECO-LENS-AI Web Application]
-    B --> C[Authentication - Supabase]
+    B --> C[Supabase Authentication]
     B --> D[Waste Image Upload]
     D --> E[Lovable AI Gateway]
     E --> F[Waste Classification]
@@ -85,8 +87,11 @@ flowchart TD
     I --> K[Dashboard and Scan History]
     J --> K
 
-    L[Separately Trained PyTorch Model] -.-> M[FastAPI Classification Service]
-    M -. Not yet deployed or connected to live app .-> B
+    L[Trained PyTorch Model] -.-> M[FastAPI Service]
+    M -. Not deployed or connected .-> B
+```
+
+**What runs today:** the deployed app classifies through the **Lovable AI Gateway** (a general vision model). The Python service is optional and **not deployed**; its local model is **not trained yet**. If the Python service is configured but unreachable, the scan fails visibly. The app never falls back to another engine without telling you.
 
     
 ### Currently Deployed Application
