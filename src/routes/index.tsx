@@ -27,9 +27,9 @@ import type { LocalPrediction } from "@/lib/model-contract";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "ECO-LENSAI — AI-Powered Smart Waste Segregation" },
+      { title: "ECO-LENS-AI — AI-Powered Smart Waste Segregation" },
       { name: "description", content: "Photograph a waste item, get its category, the right bin and safe disposal steps. Private scan history and dashboard." },
-      { property: "og:title", content: "ECO-LENSAI — AI-Powered Smart Waste Segregation" },
+      { property: "og:title", content: "ECO-LENS-AI — AI-Powered Smart Waste Segregation" },
       { property: "og:description", content: "Photograph a waste item, get its category, the right bin and safe disposal steps. Private scan history and dashboard." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -168,7 +168,7 @@ function Brand({ tagline = false }: { tagline?: boolean }) {
         <Leaf className="size-5" />
       </span>
       <div className="min-w-0 leading-tight">
-        <span className="font-display block truncate text-lg font-bold">EcoLens <span className="text-primary">AI</span></span>
+        <span className="font-display block truncate text-lg font-bold">ECO-LENS-<span className="text-primary">AI</span></span>
         {tagline && <span className="block text-xs text-muted-foreground">Scan. Sort. Save.</span>}
       </div>
     </div>
@@ -288,7 +288,7 @@ function AuthScreen() {
         <div id="auth-card" className="fade-up w-full max-w-md scroll-mt-4 rounded-3xl border border-border bg-card p-6 shadow-xl sm:p-8">
           <div className="mb-6 flex items-center justify-center gap-2.5">
             <span className="bg-ocean glow grid size-9 shrink-0 place-items-center rounded-xl text-primary-foreground"><Leaf className="size-5" /></span>
-            <div className="leading-tight"><span className="font-display block text-lg font-bold">ECO-LENSAI</span><span className="block text-xs text-muted-foreground">Scan. Sort. Save.</span></div>
+            <div className="leading-tight"><span className="font-display block text-lg font-bold">ECO-LENS-AI</span><span className="block text-xs text-muted-foreground">Scan. Sort. Save.</span></div>
           </div>
           <div className="grid grid-cols-2 rounded-xl bg-muted p-1" role="tablist" aria-label="Authentication mode">
             {(["login", "signup"] as const).map((m) => (
