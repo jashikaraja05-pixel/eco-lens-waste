@@ -37,9 +37,13 @@ __pycache__/
 .venv/
 .pytest_cache/
 backend/data/
-backend/models/
-*.pt
+backend/models/*
+!backend/models/best.pt
+!backend/models/config.json
+!backend/models/evaluation_report.json
+!backend/models/training_summary.json
 
 # Local secrets
 backend/.env
 .env.local
+
