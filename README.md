@@ -2,18 +2,18 @@
 
 **Scan. Sort. Save.**
 
-**Neural Storm 2026 · Track: Green Planet · Problem Statement GP-05: Smart Waste Segregation System**
+Neural Storm 2026 · Track: Green Planet · Problem Statement GP-05: Smart Waste Segregation System
 
-| | |
+| Project Details | Information |
 |---|---|
 | Team Name | solo stack |
 | Team Leader | Jashika R |
 | Institution | Rathinam Technical Campus |
-| GitHub Repository | https://github.com/jashikaraja05-pixel/eco-lens-waste |
-| Live Application | https://eco-lens-waste.lovable.app |
+| GitHub Repository | [eco-lens-waste](https://github.com/jashikaraja05-pixel/eco-lens-waste) |
+| Live Application | [ECO-LENS-AI](https://eco-lens-waste.lovable.app) |
 | Demo Video | [Watch ECO-LENS-AI Demo](https://drive.google.com/file/d/1YGdSYP2cZFC_ar5uKUi2GesWO0AZiHfv/view?usp=sharing) |
 
-![Sign-in screen](docs/screenshots/auth.png)
+**Scan. Sort. Save. — Making responsible waste segregation easier with AI.**
 
 ---
 
@@ -29,7 +29,7 @@ An intelligent, accessible, and easy-to-use waste identification system can help
 
 ECO-LENS-AI is an AI-powered smart waste segregation application that helps users identify and dispose of waste responsibly.
 
-Users can upload an image or capture a photo using their device camera. The AI-powered classification system identifies the waste item, assigns it to an appropriate waste category, recommends the correct disposal bin, and provides useful disposal instructions and safety guidance.
+Users can upload an image or capture a photo using their device camera. The AI classification system identifies the waste item, assigns it to an appropriate waste category, recommends the correct disposal bin, and provides useful disposal instructions and safety guidance.
 
 The application supports five main waste categories:
 
@@ -39,11 +39,11 @@ The application supports five main waste categories:
 - E-Waste
 - Residual
 
-When the prediction is uncertain, the application displays an **Uncertain** result and recommends rescanning instead of presenting an unreliable classification.
+When a prediction is uncertain, the application displays an **Uncertain** result and recommends rescanning instead of presenting an unreliable classification.
 
 ECO-LENS-AI also provides user authentication, private scan history, a personal dashboard, and a Learn Hub to promote responsible waste management.
 
-The project also includes a separately trained 13-class MobileNetV3-Small model that can be integrated through the Python FastAPI backend.
+The application integrates a separately trained 13-class MobileNetV3-Small model through ONNX Runtime Web, allowing browser-based image classification without requiring an external Python hosting service.
 
 ## 3. Objectives
 
@@ -53,14 +53,16 @@ The project also includes a separately trained 13-class MobileNetV3-Small model 
 - Avoid unreliable predictions through an uncertainty mechanism.
 - Maintain private scan history for individual users.
 - Promote awareness about recycling and responsible waste disposal.
-- Provide a path to integrate a self-hosted trained machine learning model.
+- Run the trained classification model directly in the browser.
+- Provide an explicit alternative classification option through Lovable AI Gateway.
 
 ## 4. Key Features
 
 - **User Authentication:** Email and password-based registration and login with email confirmation.
 - **Image Upload:** Upload waste images for AI classification.
 - **Live Camera Capture:** Capture waste images directly using the device camera.
-- **AI Waste Classification:** Identify waste items and assign suitable categories.
+- **Browser-Based AI Classification:** Run the trained MobileNetV3-Small model through ONNX Runtime Web.
+- **13-Class Waste Recognition:** Identify waste items using the separately trained model.
 - **Bin Recommendation:** Recommend the appropriate disposal bin.
 - **Disposal Instructions:** Provide explanations, disposal steps, safety notes, and reuse tips.
 - **Uncertain Detection:** Low-confidence predictions use a 55% threshold and can request a rescan.
@@ -68,52 +70,109 @@ The project also includes a separately trained 13-class MobileNetV3-Small model 
 - **Private Scan History:** Search, filter, view, and delete saved scan records.
 - **Personal Dashboard:** Display scan totals, category statistics, active days, and other personal metrics.
 - **Learn Hub:** Provide waste management guides, recycling information, composting guidance, and battery/e-waste safety information.
-- **Optional Python Backend:** Includes a FastAPI service and a separately trained PyTorch model.
+- **Alternative AI Engine:** Lovable AI Gateway remains available as an explicit alternative.
+- **Engine Identification:** Results identify whether MobileNetV3-Small or Lovable AI Gateway generated the classification.
 
-## 5. System architecture
+## 5. System Architecture
+
+ECO-LENS-AI uses a browser-based AI classification architecture powered by a separately trained MobileNetV3-Small model.
+
+### Live Application Architecture
 
 ```mermaid
-
 flowchart TD
     A[User] --> B[ECO-LENS-AI Web Application]
-    B --> C[Supabase Authentication]
-    B --> D[Waste Image Upload]
-    D --> E[Lovable AI Gateway]
-    E --> F[Waste Classification]
-    F --> G[13 Waste Categories]
-    G --> H[AI Result and Confidence]
-    H --> I[Bin Recommendation]
-    H --> J[Disposal Guidance]
-    I --> K[Dashboard and Scan History]
-    J --> K
 
-    L[Trained PyTorch Model] -.-> M[FastAPI Service]
-    M -. Not deployed or connected .-> B
+    B --> C[Authentication - Lovable Cloud]
+
+    B --> D[Image Upload / Camera Capture]
+
+    D --> E[Browser Image Preprocessing]
+
+    E --> F[ONNX Runtime Web]
+
+    F --> G[MobileNetV3-Small Model]
+
+    G --> H[13-Class Waste Prediction]
+
+    H --> I[Application Category Mapping]
+
+    I --> J[Bin Recommendation]
+
+    J --> K[Disposal Guidance]
+
+    K --> L[Result Display]
+
+    L --> M[Save Scan]
+
+    M --> N[Private Scan History]
+
+    N --> O[Personal Dashboard]
+
+    D -. Explicit Alternative .-> P[Lovable AI Gateway]
+
+    P --> Q[Gateway Classification Result]
+
+    Q --> L
 ```
 
-**What runs today:** the deployed app classifies through the **Lovable AI Gateway** (a general vision model). The Python service is optional and **not deployed**; its local model is **not trained yet**. If the Python service is configured but unreachable, the scan fails visibly. The app never falls back to another engine without telling you.
+### Primary AI Classification Engine
 
-    
-### Currently Deployed Application
+- Model Architecture: MobileNetV3-Small.
+- Training Framework: PyTorch.
+- Browser Model Format: ONNX.
+- Browser Runtime: ONNX Runtime Web.
+- Classification Coverage: 13 waste classes.
+- Inference: Runs directly in the user's browser.
+- External Python Hosting: Not required for browser inference.
 
-- Frontend and application services are hosted through Lovable Cloud.
-- Authentication and scan history are managed through the application backend.
-- Waste classification currently uses the Lovable AI Gateway vision model.
-- The application validates predictions and applies a fixed server-side waste-bin mapping.
+### Trained Model Classes
 
-### Trained Machine Learning Model
+The trained model supports the following 13 classes:
 
-- Architecture: MobileNetV3-Small.
-- Framework: PyTorch.
-- Number of classes: 13.
-- Trained model weights and configuration files are available in the GitHub repository.
-- Model evaluation results are documented in the Testing section.
+1. Battery
+2. Biological
+3. Brown Glass
+4. Cardboard
+5. Clothes
+6. E-Waste
+7. Green Glass
+8. Metal
+9. Paper
+10. Plastic
+11. Shoes
+12. Trash
+13. White Glass
 
-### Backend Integration Status
+### Classification Workflow
 
-The Python FastAPI service is available in the repository, but it has not yet been deployed and connected to the live application.
+1. The user signs in to ECO-LENS-AI.
+2. The user uploads a waste image or captures one using the camera.
+3. The browser validates and preprocesses the image.
+4. ONNX Runtime Web loads and executes the MobileNetV3-Small model.
+5. The model produces a 13-class prediction.
+6. The application maps the predicted class to its waste category.
+7. The application recommends a suitable bin.
+8. Disposal instructions and prediction confidence are displayed.
+9. The authenticated user can save the scan to private history.
+10. Saved scans are available through Scan History and Dashboard.
 
-Therefore, the live website currently uses the Lovable AI Gateway, not the separately trained PyTorch model.
+### Alternative AI Engine
+
+Lovable AI Gateway remains available as an explicit alternative classification engine.
+
+- The user can explicitly select the Gateway alternative.
+- Gateway results are separately labelled.
+- The application does not silently switch engines.
+- The classification source is retained to distinguish the two engines.
+
+### Confidence and Verification
+
+The browser model displays its softmax prediction score as prediction confidence.
+
+This score is not the same as measured model accuracy.
+
+Browser predictions are client-reported and are not independently verified by the server.
 
 ## 6. Technology Stack
 
@@ -125,9 +184,11 @@ Therefore, the live website currently uses the Lovable AI Gateway, not the separ
 | Application Backend | Lovable Cloud |
 | Database | PostgreSQL |
 | Authentication | Lovable Cloud Authentication |
-| AI Classification | Lovable AI Gateway |
-| Machine Learning | PyTorch |
-| Model Architecture | MobileNetV3-Small |
+| Primary AI Model | MobileNetV3-Small |
+| Model Training | PyTorch |
+| Browser Model Format | ONNX |
+| Browser Inference | ONNX Runtime Web |
+| Alternative AI | Lovable AI Gateway |
 | Python Backend | FastAPI, Uvicorn |
 | ML Libraries | torchvision, scikit-learn |
 | Frontend Testing | Vitest |
@@ -136,24 +197,22 @@ Therefore, the live website currently uses the Lovable AI Gateway, not the separ
 
 ## 7. AI Classification Workflow
 
-The application follows the workflow below:
+The application follows this workflow:
 
 1. The user signs in and uploads a waste image or captures one using the camera.
-2. The browser resizes the image to a maximum dimension of 768 pixels.
-3. The image is sent to the `classifyWaste` server function.
-4. The server validates the image format, size, and file signature.
-5. The selected AI engine generates the classification result.
-6. `normalizePrediction` (`src/lib/scan-schema.ts`) validates the output.
-7. The application applies the 55% uncertainty rule.
-8. A fixed server-side mapping determines the recommended waste bin.
-9. The classification result is saved to the user's private scan history.
-10. The result is displayed to the user with disposal instructions.
+2. The browser validates the image format and processes the image.
+3. The browser-side ONNX Runtime loads the trained MobileNetV3-Small model.
+4. The model predicts the waste class from the 13 supported classes.
+5. The application maps the prediction to one of its five waste categories.
+6. The application applies its waste-bin recommendation rules.
+7. The 55% uncertainty rule is applied to the prediction score.
+8. The result screen displays the detected item, category, bin recommendation, prediction confidence, and disposal guidance.
+9. The authenticated user can save the result to private scan history.
+10. Saved records can be viewed through the Dashboard and Scan History.
 
-**Important:** Confidence from the built-in vision AI is self-reported by the model. The application labels it as AI-estimated confidence. It is not measured model accuracy.
+The Lovable AI Gateway remains available as an explicit alternative.
 
 ## 8. Categories and Model Coverage
-
-The trained MobileNetV3-Small model supports 13 waste classification classes.
 
 ### Trained Model Classes
 
@@ -183,9 +242,9 @@ The application organizes waste into five main categories:
 - E-Waste
 - Residual
 
-The trained model provides fine-grained waste classification. The live application's current classification engine remains the Lovable AI Gateway until the Python model service is deployed and integrated.
+The trained model provides fine-grained waste classification. The application maps the supported model predictions into its five main waste categories and associated bin recommendations.
 
-**Important Limitation:** The trained model's 13 classes do not represent comprehensive hazardous-waste detection. It should not be considered a chemical, medicine, or aerosol detection system.
+**Important limitation:** The 13 trained classes do not provide comprehensive hazardous-waste detection. ECO-LENS-AI should not be considered a chemical, medicine, or aerosol detection system.
 
 ## 9. Dataset Information and Attribution
 
@@ -222,10 +281,12 @@ The trained MobileNetV3-Small model files are available in:
 
 These include:
 
-- `best.pt` – trained model weights.
+- `best.pt` – trained PyTorch model weights.
 - `config.json` – model configuration.
 - `evaluation_report.json` – model evaluation results.
 - `training_summary.json` – training summary.
+
+The browser inference model is exported in ONNX format for use with ONNX Runtime Web.
 
 All dataset sources and their respective license requirements must be acknowledged when redistributing or reusing the datasets.
 
@@ -287,7 +348,7 @@ Open the local development URL shown in the terminal. The default application UR
 
 ### Step 4: Python Backend Setup (Optional)
 
-The Python FastAPI service is available as an optional local backend.
+The Python FastAPI service is available as an optional backend for local development and model-related workflows.
 
 Navigate to the backend directory:
 
@@ -370,11 +431,11 @@ The directory contains:
 
 For additional model training and evaluation instructions, refer to the backend documentation.
 
-### Important Deployment Note
+### Browser Inference
 
-The live ECO-LENS-AI application currently uses the Lovable AI Gateway for image classification.
+The deployed application uses the browser-side ONNX model for its primary classification workflow.
 
-The Python FastAPI backend and trained PyTorch model are available in the repository for local setup and future integration. The Python backend is not currently deployed or connected to the live application.
+The ONNX model is loaded by ONNX Runtime Web. A separate external Python hosting service is not required for this browser inference workflow.
 
 ## 11. Environment Variables
 
@@ -383,7 +444,7 @@ The Python FastAPI backend and trained PyTorch model are available in the reposi
 | `VITE_SUPABASE_URL` | Web app | Database connection |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Web app | Public authentication/database key |
 | `VITE_SUPABASE_PROJECT_ID` | Web app | Project identification |
-| `LOVABLE_API_KEY` | App server | Built-in AI classification |
+| `LOVABLE_API_KEY` | App server | Alternative AI classification |
 | `PYTHON_CLASSIFIER_URL` | App server (optional) | Route scans to Python service |
 | `PYTHON_CLASSIFIER_API_KEY` | App server (optional) | Sent as `X-Classifier-Key` |
 | `CLASSIFIER_API_KEY` | Python service | Required shared key for `/classify` |
@@ -396,7 +457,7 @@ The Python FastAPI backend and trained PyTorch model are available in the reposi
 
 No secret keys should be committed to the repository. The `.env.example` files contain placeholders for local configuration. Keep actual environment files and private API keys out of version control.
 
-## 12. API Endpoints (Python Service)
+## 12. API Endpoints (Optional Python Service)
 
 The optional Python FastAPI service provides the following endpoints.
 
@@ -405,17 +466,6 @@ The optional Python FastAPI service provides the following endpoints.
 **GET** `/health`
 
 Returns the service status and active classification engine.
-
-Example response:
-
-```json
-{
-  "status": "ok",
-  "engine": "local-ml"
-}
-```
-
-The actual response may include additional engine and model information.
 
 ### Waste Classification
 
@@ -435,20 +485,6 @@ Authentication header:
 
 `X-Classifier-Key`
 
-Example response:
-
-```json
-{
-  "item": "plastic",
-  "category": "recyclable",
-  "confidence": 87,
-  "reasoning": "...",
-  "steps": ["..."],
-  "bin": "Blue Bin (Dry Recyclable Waste)",
-  "warnings": []
-}
-```
-
 ### Error Responses
 
 | Status Code | Description |
@@ -461,24 +497,58 @@ Example response:
 | 502 | Model processing error |
 | 402/429 | Usage limits |
 
+The browser-based ONNX inference workflow does not require this optional Python service.
+
 ## 13. Testing
 
-The project was tested through frontend unit tests, Python backend tests, and end-to-end application testing.
+The project was tested through frontend unit tests, Python backend tests, model comparison tests, and browser-based application testing.
 
-### Application Testing Results
+### Automated Test Results
 
 | Test | Result |
 |---|---|
-| Web unit tests | 16/16 passed |
-| Python tests | 16 passed, 3 skipped |
-| Plastic bottle classification | Passed |
-| User data isolation | Passed |
-| Invalid image validation | Passed |
-| Oversized image validation | Passed |
+| Frontend tests | 55 passed |
+| Python backend tests | 19 passed |
+| Total reported automated tests | 74 passed |
+| ONNX model export | Passed |
+| PyTorch vs ONNX comparison | Passed |
+| 13-class browser inference | Passed |
+| Image-format validation checks | Passed |
 
-The end-to-end test verified user sign-in, image upload, waste classification, and saving the result to scan history.
+### Browser Model Integration Testing
 
-### Machine Learning Model Evaluation
+The trained MobileNetV3-Small model was integrated into the browser using ONNX Runtime Web.
+
+The following workflow was tested:
+
+1. User signs in.
+2. User uploads a waste image.
+3. Browser executes ONNX model inference.
+4. Classification result is displayed.
+5. User saves the result.
+6. Scan is associated with the authenticated account.
+7. Saved results can be accessed through the application's history and dashboard flows.
+
+The implementation report also records two-account data-isolation testing.
+
+### Live Application Test
+
+A plastic bottle image was tested on the live ECO-LENS-AI application.
+
+**Observed result:**
+
+| Field | Result |
+|---|---|
+| Detected Item | Plastic |
+| Application Category | Recyclable |
+| Recommended Bin | Blue Bin |
+| Prediction Confidence | 100% |
+| Classification Engine | MobileNetV3-Small (ONNX Browser) |
+| Save Scan | Successful |
+
+The 100% value is the displayed softmax prediction score. It is not a measured accuracy result.
+
+### Model Evaluation Results
 
 The MobileNetV3-Small model was evaluated using a separate held-out test dataset.
 
@@ -509,9 +579,15 @@ The MobileNetV3-Small model was evaluated using a separate held-out test dataset
 | P50 | 9.0 ms |
 | P95 | 12.2 ms |
 
-These results represent the separately trained PyTorch model's evaluation performance. They do not represent the measured accuracy of the currently deployed Lovable AI Gateway classifier.
+These results represent the separately trained PyTorch model's held-out evaluation performance. They do not represent independently measured accuracy of the published browser application.
 
-The model was evaluated on 2,438 held-out test images across 13 classes.
+### Testing Limitations
+
+- Browser prediction results are client-reported.
+- The live plastic bottle prediction and saving flow were verified.
+- Independent real-world accuracy testing remains future work.
+- Additional testing is required for difficult waste images, mixed waste, and e-waste classification.
+- Model confidence must not be interpreted as measured accuracy.
 
 ## 14. Deployment
 
@@ -522,36 +598,42 @@ The ECO-LENS-AI web application is published using Lovable Cloud.
 - Frontend application: Deployed.
 - Authentication: Available.
 - Database and scan history: Available.
-- AI image classification: Available through Lovable AI Gateway.
+- Browser-based MobileNetV3-Small inference: Integrated.
+- Alternative AI classification: Available through Lovable AI Gateway.
 
 **Live Application:** https://eco-lens-waste.lovable.app
 
-### Python Backend
+### Browser Model Deployment
 
-The Python FastAPI backend is available in the GitHub repository but is not currently deployed.
+The trained MobileNetV3-Small model is exported to ONNX format and executed in the browser through ONNX Runtime Web.
 
-The separately trained PyTorch model can be integrated with the live application in a future deployment.
+This allows primary model inference without deploying a separate Python server.
 
-The currently published application uses the Lovable AI Gateway for classification.
+### Optional Python Backend
+
+The Python FastAPI backend is available in the GitHub repository for local development and optional workflows. It is not required for the browser-based classification path.
 
 ## 15. Limitations and Future Improvements
 
 ### Current Limitations
 
-- The live application currently uses a general-purpose vision model through the Lovable AI Gateway.
-- The separately trained MobileNetV3-Small model has been evaluated, but its Python FastAPI service is not yet deployed and connected to the live application.
-- The model supports 13 waste classification classes and does not provide comprehensive hazardous chemical, medicine, or aerosol detection.
+- The model supports 13 waste classification classes.
+- It does not provide comprehensive hazardous chemical, medicine, or aerosol detection.
+- Browser predictions are client-reported and are not independently verified by the server.
+- Prediction confidence is not the same as measured accuracy.
 - Classification performance may vary depending on image quality, lighting conditions, and mixed waste items.
 - Waste disposal rules and bin colours may differ between municipalities.
+- Independent real-world evaluation across a wider variety of waste items remains necessary.
 
 ### Future Improvements
 
-- Deploy and integrate the trained PyTorch model with the live application.
-- Expand hazardous waste classification capabilities.
 - Improve model performance using more diverse real-world waste images.
+- Expand hazardous waste classification capabilities.
+- Improve e-waste classification with additional labelled training examples.
 - Add multilingual waste disposal guidance.
 - Integrate nearby recycling centres and waste collection locations.
 - Improve real-time waste classification and mobile usability.
+- Conduct broader independent model evaluation.
 
 ## For Judges – Application Access
 
@@ -575,12 +657,14 @@ A dedicated evaluation account is available for judges to explore the applicatio
 2. Sign in using the evaluation account credentials shared with the judges.
 3. Navigate to the **Waste Scanner**.
 4. Upload an image of a waste item or capture an image using the camera.
-5. View the AI-generated waste classification result.
+5. View the MobileNetV3-Small browser classification result.
 6. Check the recommended waste category and disposal bin.
 7. Review the disposal instructions and safety guidance.
-8. Open **Scan History** to explore previously saved results.
-9. Visit the **Dashboard** to view scan statistics.
-10. Explore the **Learn Hub** for waste management information.
+8. Save the scan to the account.
+9. Open **Scan History** to explore saved results.
+10. Visit the **Dashboard** to view scan statistics.
+11. Explore the **Learn Hub** for waste management information.
+12. Optionally select Lovable AI Gateway to explore the alternative classification engine.
 
 ### Creating a New Account
 
@@ -598,25 +682,37 @@ Each account can access only its own scan history.
 
 The following screenshots demonstrate the main application features.
 
-| Dashboard | Waste Scanner |
+| Sign-in Screen | Dashboard |
 |---|---|
-| ![Dashboard](docs/screenshots/dashboard.png) | ![Scanner](docs/screenshots/scan.png) |
+| ![Sign-in screen](docs/screenshots/auth.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
-| Scan History | Learn Hub |
+| Waste Scanner | Scan History |
 |---|---|
-| ![History](docs/screenshots/history.png) | ![Learn Hub](docs/screenshots/learn.png) |
+| ![Scanner](docs/screenshots/scan.png) | ![History](docs/screenshots/history.png) |
 
-| Organic Result | Uncertain Result |
+| Learn Hub | Organic Result |
 |---|---|
-| ![Organic result](docs/screenshots/result-organic.png) | ![Uncertain result](docs/screenshots/result-uncertain-mixed.png) |
+| ![Learn Hub](docs/screenshots/learn.png) | ![Organic result](docs/screenshots/result-organic.png) |
+
+| Uncertain Result | |
+|---|---|
+| ![Uncertain result](docs/screenshots/result-uncertain-mixed.png) | |
 
 ## AI Tools Disclosure
 
 - Lovable AI coding assistant was used for application development.
 - ChatGPT was used for code review, debugging assistance, and documentation support.
-- The deployed application uses the Lovable AI Gateway vision model for AI-powered waste classification.
+- PyTorch was used to train the MobileNetV3-Small waste classification model.
+- ONNX Runtime Web is used for browser-based model inference.
+- Lovable AI Gateway is available as an alternative AI classification engine.
 - AI-generated images were used for testing purposes.
 
 ## License
 
 Released under the [MIT License](LICENSE).
+
+---
+
+**ECO-LENS-AI — Scan. Sort. Save.**
+
+Building a cleaner and more sustainable future through intelligent waste segregation.
