@@ -30,3 +30,7 @@
 - [x] Report changed files, unsaved-local trust boundary and verification limitations
 - [ ] Verify published model/codec assets and hosted browser policy — requires publishing
 - [ ] Independently reproduce held-out accuracy and representative whole-device e-waste performance — requires original split and labelled images
+
+# WASM deployment correction
+- [x] Remove source-relative binary loading and move browser binaries to public/wasm
+- [x] Recheck 26 real-image predictions, eight exact preprocessing fixtures, signed-in camera/mobile flow and 40 frontend tests

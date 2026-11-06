@@ -77,6 +77,9 @@ reproduced. It is not a browser accuracy claim or per-image confidence.
 The app runs the genuine exported checkpoint in the browser using ONNX Runtime
 Web 1.22.0, single-threaded WASM with same-origin model/runtime files. Python is
 used only for one-time conversion. No external Python API is required.
+WASM binaries and the large-runtime asset pointer live in `public/wasm/`.
+The browser supplies their URLs after user interaction; the public runtime
+loader has no `import.meta.url`-relative WASM import for the server bundler.
 
 ```bash
 pip install torch torchvision onnx onnxruntime numpy pillow

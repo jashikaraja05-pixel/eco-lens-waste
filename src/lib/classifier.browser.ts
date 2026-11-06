@@ -2,15 +2,21 @@ import { imageSchema } from "./scan-schema";
 import { modelManifestSchema, predictionFromLogits, type LocalPrediction, type ModelManifest } from "./model-contract";
 import { preprocessRgb, type RgbImage } from "./model-preprocessing";
 import type { InferenceSession } from "onnxruntime-web";
-import wasmAsset from "../../public/models/ort/ort-wasm-simd-threaded.wasm.asset.json";
 
 let resources: Promise<{ manifest: ModelManifest; session: InferenceSession }> | undefined;
 let jpegReady: Promise<void> | undefined;
 let webpReady: Promise<void> | undefined;
 
 async function loadResources() {
+  if (typeof window === "undefined") throw new Error("Local inference is available only in your browser.");
   if (!resources) {
     resources = (async () => {
+      const assetResponse = await fetch("/wasm/ort-wasm-simd-threaded.wasm.asset.json");
+      if (!assetResponse.ok) throw new Error("The browser runtime asset could not load.");
+      const wasmAsset: unknown = await assetResponse.json();
+      if (!wasmAsset || typeof wasmAsset !== "object" || !("url" in wasmAsset) || typeof wasmAsset.url !== "string" || !wasmAsset.url.startsWith("/__l5e/assets-v1/")) {
+        throw new Error("The browser runtime asset URL is invalid.");
+      }
       const ort = await import("onnxruntime-web/wasm");
       ort.env.wasm.numThreads = 1;
       ort.env.wasm.proxy = false;
@@ -52,7 +58,7 @@ export async function decodeModelImage(file: Blob): Promise<RgbImage> {
   const webp = String.fromCharCode(...bytes.slice(0, 4)) === "RIFF" && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP";
   if (file.type === "image/jpeg" && jpeg) {
     const { default: decode, init } = await import("@jsquash/jpeg/decode");
-    if (!jpegReady) jpegReady = init({ locateFile: () => new URL("/models/ort/mozjpeg_dec.wasm", window.location.origin).href });
+    if (!jpegReady) jpegReady = init({ locateFile: () => new URL("/wasm/mozjpeg_dec.wasm", window.location.origin).href });
     await jpegReady;
     const decoded = await decode(bytes.buffer, { preserveOrientation: false });
     if (decoded.width * decoded.height > 40_000_000) throw new Error("Image resolution is too large.");
@@ -82,7 +88,7 @@ export async function decodeModelImage(file: Blob): Promise<RgbImage> {
   }
   if (file.type === "image/webp" && webp) {
     const { default: decode, init } = await import("@jsquash/webp/decode");
-    if (!webpReady) webpReady = init({ locateFile: () => new URL("/models/ort/webp_dec.wasm", window.location.origin).href });
+    if (!webpReady) webpReady = init({ locateFile: () => new URL("/wasm/webp_dec.wasm", window.location.origin).href });
     await webpReady;
     const decoded = await decode(bytes.buffer);
     if (decoded.width * decoded.height > 40_000_000) throw new Error("Image resolution is too large.");
