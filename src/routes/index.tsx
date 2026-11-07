@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { classifyWaste, deleteMyAccount, saveBrowserScan } from "@/lib/classify.functions";
-import { BROWSER_SOURCE, reuseTips, safetyFor, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
+import { BROWSER_SOURCE, GEMINI_SOURCE, engineLabel, reuseTips, safetyFor, type ScanResult, type StoredCategory } from "@/lib/scan-schema";
 import { BINS, rowToScan, stats, type Scan, type ScanRow, type VerifiedCategory } from "@/lib/eco-store";
 import type { LocalPrediction } from "@/lib/model-contract";
 
@@ -362,7 +362,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
   const [image, setImage] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [localResult, setLocalResult] = useState<LocalPrediction | null>(null);
-  const [engine, setEngine] = useState<"local" | "online">("local");
+  const [engine, setEngine] = useState<"local" | "online">("online");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const savingRef = useRef(false);
@@ -396,6 +396,18 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
     setCamOn(false);
   };
   useEffect(() => () => { operationRef.current += 1; stopCam(); }, []);
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!camOn || !video || !stream) return;
+    // Attach after React mounts the conditional video, not in a racing frame callback.
+    const request = cameraRequestRef.current;
+    video.srcObject = stream;
+    void video.play().catch(() => {
+      if (request !== cameraRequestRef.current) return;
+      stopCam(); toast.error("Camera preview could not start.");
+    });
+  }, [camOn]);
 
   const startCam = async () => {
     stopCam();
@@ -405,13 +417,6 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
       if (request !== cameraRequestRef.current) { s.getTracks().forEach((t) => t.stop()); return; }
       streamRef.current = s;
       setCamOn(true);
-      requestAnimationFrame(() => {
-        if (request !== cameraRequestRef.current) return;
-        if (videoRef.current) {
-          videoRef.current.srcObject = s;
-          void videoRef.current.play().catch(() => { stopCam(); toast.error("Camera preview could not start."); });
-        }
-      });
     } catch {
       if (request !== cameraRequestRef.current) return;
       toast.error("Camera access was denied or is unavailable.");
@@ -454,7 +459,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
     r.readAsDataURL(f);
   };
 
-  const analyze = async (requested: "local" | "online" = "local") => {
+  const analyze = async (requested: "local" | "online" = "online") => {
     if (!image || analyzingRef.current || savingRef.current) return;
     const operation = ++operationRef.current;
     analyzingRef.current = true;
@@ -474,7 +479,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
         else toast.success("Local prediction ready — not saved.");
         return;
       }
-      const res = await classify({ data: { image, engine: "gateway" } });
+      const res = await classify({ data: { image } });
       if (operation !== operationRef.current) return;
       onSaved(res);
       setResult(res);
@@ -599,11 +604,11 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
           </div>
           {image && !result && (
             <div className="mt-4 border-t border-border pt-4">
-              <p className="text-xs text-muted-foreground">Primary engine: MobileNetV3-Small (ONNX Browser)</p>
-              <Button variant="outline" className="mt-3 h-auto min-h-11 w-full whitespace-normal rounded-xl py-2" disabled={loading || saving} onClick={() => void analyze("online")}>
-                <Server className="size-4 shrink-0" /> Use Lovable AI Gateway
+              <p className="text-xs text-muted-foreground">Primary engine: Google Gemini (Render)</p>
+              <Button variant="outline" className="mt-3 h-auto min-h-11 w-full whitespace-normal rounded-xl py-2" disabled={loading || saving} onClick={() => void analyze("local")}>
+                <Cpu className="size-4 shrink-0" /> Use Browser MobileNet
               </Button>
-              <p className="mt-2 text-xs text-muted-foreground">Explicit alternative: sends the photo online and saves a separately labelled Gateway result. No automatic fallback.</p>
+              <p className="mt-2 text-xs text-muted-foreground">Browser prediction · Save Scan adds it to your private history. No automatic fallback.</p>
             </div>
           )}
         </div>
@@ -653,7 +658,7 @@ export function ResultCard({ r, onSave, saving = false, saveError }: { r: ScanRe
   const warnings = safetyFor(r.category, r.item);
   const preview = r.source === "mobilenet-browser";
   const local = preview || r.source === BROWSER_SOURCE;
-  const confLabel = local ? "Prediction confidence" : r.source === "python" ? "Service-reported confidence" : "AI-estimated confidence";
+  const confLabel = local ? "Prediction confidence" : r.source === "python" ? "Service-reported confidence" : r.source === GEMINI_SOURCE ? "Gemini-reported confidence" : "AI-estimated confidence";
   return (
     <div className={`fade-up overflow-hidden rounded-3xl border bg-card shadow-sm ${unsure ? "border-warning" : "border-border"}`}>
       <div className={`${unsure ? "bg-warning-soft text-warning-foreground" : `${b.tone} text-primary-foreground`} flex items-center gap-4 p-5 sm:p-6`}>
@@ -690,7 +695,7 @@ export function ResultCard({ r, onSave, saving = false, saveError }: { r: ScanRe
         </ol>
         <div className="mt-5 rounded-2xl border border-border p-4 text-sm"><p className="mb-1 flex items-center gap-1.5 font-semibold"><Recycle className="size-4 text-primary" /> Reuse &amp; recycling</p><p className="text-muted-foreground">{reuseTips[r.category]}</p></div>
         <div className="mt-5 border-t border-border pt-4 text-xs text-muted-foreground">
-          <p className="flex items-start gap-1.5"><Server className="size-3.5 shrink-0" /> Engine: {local ? BROWSER_SOURCE : r.source === "python" ? "Python classifier service — underlying engine not recorded" : "Lovable AI Gateway"}</p>
+          <p className="flex items-start gap-1.5"><Server className="size-3.5 shrink-0" /> Engine: {engineLabel(r.source)}</p>
           {local && <p className="mt-2 flex items-start gap-1.5"><ShieldCheck className="size-3.5 shrink-0" /> Browser-reported prediction · Model execution not independently verified</p>}
           <p className="mt-2 flex items-center gap-1.5">{preview ? "Not saved to history" : <><CheckCircle2 className="size-3.5 shrink-0 text-primary" /> Saved to history</>}</p>
           {preview && onSave && <><p className="mt-3">Saving uploads this photo and prediction to your private account history.</p><Button className="mt-4 h-12 w-full rounded-xl" disabled={saving} onClick={onSave}>{saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}{saving ? "Saving…" : "Save Scan"}</Button></>}
@@ -863,7 +868,7 @@ function HistoryView({ history, onDelete, onClearAll, onGoScan, onView }: { hist
               <div className="flex flex-1 flex-col p-4 sm:p-5">
                 <h3 className="font-semibold">{h.item}</h3>
                 <p className="text-sm font-medium text-primary">{h.bin}</p>
-                <p className="mt-1 text-xs text-muted-foreground">Engine: {h.source === BROWSER_SOURCE ? BROWSER_SOURCE : h.source === "gateway" ? "Lovable AI Gateway" : "Python classifier service"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Engine: {engineLabel(h.source)}</p>
                 <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
                   {h.steps.slice(0, 3).map((s, i) => <li key={i} className="flex gap-2"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />{s}</li>)}
                 </ul>
@@ -938,8 +943,8 @@ function Learn() {
       <div className="mt-8 rounded-2xl border border-border bg-card p-5 text-sm">
         <p className="flex items-center gap-2 font-semibold"><Server className="size-4 text-primary" /> What the scanner can recognise</p>
         <ul className="mt-2 space-y-1.5 text-muted-foreground">
-          <li><strong className="text-foreground">MobileNetV3-Small (primary):</strong> the trained 13-class browser model maps battery, biological, glass, cardboard, clothes, e-waste, metal, paper, plastic, shoes and trash to five categories. Hazardous coverage is batteries, not chemicals, medicines or aerosols.</li>
-          <li><strong className="text-foreground">Lovable AI Gateway (explicit alternative):</strong> online vision classification, separately labelled in history. Neither engine's prediction confidence is measured accuracy; confirm local disposal rules.</li>
+          <li><strong className="text-foreground">Google Gemini (primary):</strong> identifies the physical object through the existing Render service; fixed rules select the waste category. Unknown or unclear items remain Uncertain.</li>
+          <li><strong className="text-foreground">MobileNetV3-Small (explicit fallback):</strong> the unchanged trained 13-class browser model. Hazardous coverage is batteries, not chemicals, medicines or aerosols. Neither engine's prediction confidence is measured accuracy; confirm local disposal rules.</li>
         </ul>
       </div>
     </section>

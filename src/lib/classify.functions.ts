@@ -6,17 +6,18 @@ import { classifyImage } from "./classifier.server";
 import { rowToScan, type Scan, type ScanRow } from "./eco-store";
 import { browserSaveSchema, normalizeBrowserReport } from "./browser-scan-schema";
 
-/** Classifies an image (Python FastAPI service if configured, else built-in AI) and saves it to the caller's history. */
+/** Classifies through the existing Render service and saves to the authenticated caller's history. */
 export const classifyWaste = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ image: imageSchema, engine: z.literal("gateway").optional() }).strict().parse(d))
+  .inputValidator((d) => z.object({ image: imageSchema }).strict().parse(d))
   .handler(async ({ data, context }): Promise<Scan> => {
     let result: ScanResult;
     try {
-      result = await classifyImage(data.image, { pythonUrl: process.env["PYTHON_CLASSIFIER_URL"], pythonApiKey: process.env["PYTHON_CLASSIFIER_API_KEY"], lovableApiKey: process.env["LOVABLE_API_KEY"] }, data.engine);
+      result = await classifyImage(data.image, { pythonUrl: process.env["PYTHON_CLASSIFIER_URL"], pythonApiKey: process.env["PYTHON_CLASSIFIER_API_KEY"] });
     } catch (e) {
-      console.error("classification failed", e);
-      throw new Error(e instanceof z.ZodError ? "The AI returned an invalid answer. Please try again." : (e as Error).message);
+      const message = e instanceof z.ZodError ? "The classifier returned an invalid answer. Please try again." : e instanceof Error ? e.message : "Classification failed. Please try again.";
+      console.error("classification failed", message);
+      throw new Error(message);
     }
     // Privileged insertion only after authenticated classification; direct INSERT is revoked.
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

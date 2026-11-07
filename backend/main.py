@@ -1,22 +1,15 @@
 """EcoLens AI â€” Python FastAPI classification service.
 
-POST /classify (multipart "file") -> {item, category, confidence, reasoning, steps, bin}
-
-Engine order:
-1. Local PyTorch model (MobileNetV3-Small trained via prepare_dataset.py +
-   train.py) when backend/models/best.pt + config.json exist â€” genuine local
-   inference, no external API.
-2. Vision-model fallback through an OpenAI-compatible Chat Completions API â€”
-   used ONLY when explicitly configured with AI_API_KEY (e.g. the Lovable AI
-   Gateway). Not a silent substitute: /health reports which engine is active.
-
-No predictions are fabricated. On failure the endpoint returns an HTTP error.
+The existing trained MobileNet checkpoint is unchanged. Gemini is primary when
+AI_API_KEY is configured; failures never silently switch to the local model.
 """
 from __future__ import annotations
 
 import base64
 import hmac
+import io
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -28,12 +21,12 @@ from PIL import Image
 
 from common import ALLOWED, BINS, CATEGORIES, DISPOSAL_STEPS, MAX_BYTES, UNCERTAIN_THRESHOLD, safety_for, sniff
 
-AI_BASE_URL = os.getenv("AI_BASE_URL", "https://ai.gateway.lovable.dev/v1").rstrip("/")
+AI_BASE_URL = os.getenv("AI_BASE_URL", "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
 AI_API_KEY = os.getenv("AI_API_KEY", "")
 # Shared secret required in the X-Classifier-Key header for /classify.
 CLASSIFIER_API_KEY = os.getenv("CLASSIFIER_API_KEY", "")
 ALLOW_UNAUTHENTICATED = os.getenv("ALLOW_UNAUTHENTICATED", "") == "1"  # local dev only
-AI_MODEL = os.getenv("AI_MODEL", "google/gemini-3-flash-preview")
+AI_MODEL = os.getenv("AI_MODEL", "gemini-3-flash-preview")
 MODELS_DIR = Path(os.getenv("ML_MODEL_DIR", Path(__file__).parent / "models"))
 PROMPT = (
     "You are an expert visual object identification system for waste segregation. "
@@ -83,8 +76,7 @@ def engine_name() -> str:
     model, _ = get_local()
     if model is not None:
         return f"local-ml:{_local_config.get('dataset_name', 'unknown')}"
-    return "gateway-fallback" if AI_API_KEY else "none"
-
+    return "none"
 
 def predict_local(image_bytes: bytes, mime: str) -> dict:
     model, config = get_local()
@@ -117,53 +109,88 @@ def predict_local(image_bytes: bytes, mime: str) -> dict:
 
 def map_object_to_category(item: str) -> str:
     """Map Gemini-identified object names to fixed waste categories."""
-    name = item.lower().strip()
+    name = re.sub(r"[-_]", " ", item.lower().strip())
+    # Describing a shape (e.g. fan-shaped leaf) does not identify an appliance.
+    name = re.sub(r"\b\w+ shaped\b", "", name)
+    def contains(words):
+        return any(re.search(r"\b" + re.escape(word) + r"\b", name) for word in words)
 
-    if any(word in name for word in ["charger", "fan", "electrical switch", "switch", "adapter", "cable", "wire", "circuit board", "circuit", "phone", "mobile", "computer", "keyboard", "mouse", "electronic", "earphone", "headphone", "remote", "motor"]):
-        return "ewaste"
-    elif any(word in name for word in ["battery", "cell battery", "lithium cell"]):
+    if contains(["unknown", "unclear", "blurry", "unsupported", "unidentified", "multiple objects", "mixed items"]):
+        return "uncertain"
+    if contains(["battery", "batteries", "lithium cell"]):
         return "hazardous"
-    elif any(word in name for word in ["plastic bottle", "plastic container", "paper", "cardboard", "glass bottle", "glass jar", "metal can", "aluminium can", "tin can"]):
-        return "recyclable"
-    elif any(word in name for word in ["food scraps", "vegetable peels", "fruit peels", "food waste", "leaves", "garden waste"]):
-        return "organic"
-    elif any(word in name for word in ["chip wrapper", "biscuit wrapper", "plastic wrapper", "soiled tissue", "used tissue", "thermocol"]):
+    elif contains(["charger", "fan", "switch", "adapter", "adaptor", "cable", "wire", "socket", "circuit", "circuit board", "phone", "mobile", "computer", "keyboard", "electronic", "earphone", "headphone", "remote", "motor"]):
+        return "ewaste"
+    elif contains(["chip wrapper", "biscuit wrapper", "plastic wrapper", "soiled tissue", "used tissue", "thermocol"]):
         return "residual"
+    elif contains(["plastic bottle", "plastic container", "paper", "cardboard", "glass bottle", "glass jar", "metal can", "aluminium can", "aluminum can", "tin can"]):
+        return "recyclable"
+    elif contains(["food scraps", "vegetable peels", "vegetable peel", "fruit peels", "fruit peel", "apple", "banana", "orange peel", "food waste", "leaves", "garden waste"]):
+        return "organic"
     else:
         return "uncertain"
 
-def predict_gateway(image_bytes: bytes, mime: str) -> dict:
-    url = f"data:{mime};base64,{base64.b64encode(image_bytes).decode()}"
+
+def gemini_endpoint() -> str:
+    """Allow only Google's native API; never forward its key to a gateway."""
+    base = AI_BASE_URL.strip().rstrip("/") or "https://generativelanguage.googleapis.com/v1beta"
+    if base == "https://generativelanguage.googleapis.com":
+        base += "/v1beta"
+    if base not in ("https://generativelanguage.googleapis.com/v1beta", "https://generativelanguage.googleapis.com/v1"):
+        raise HTTPException(503, "Gemini configuration error: AI_BASE_URL must be Google's native API base, not /openai or a gateway.")
+    model = AI_MODEL.strip()
+    # Accept legacy Google gateway prefixes without changing the model itself.
+    for prefix in ("google/", "models/"):
+        if model.startswith(prefix):
+            model = model[len(prefix):]
+    if not re.fullmatch(r"gemini-[A-Za-z0-9._-]+", model):
+        raise HTTPException(503, "Gemini configuration error: check AI_MODEL against Google's available models.")
+    return f"{base}/models/{model}:generateContent"
+
+
+def predict_gemini(image_bytes: bytes, mime: str) -> dict:
     body = {
-        "model": AI_MODEL,
-        "messages": [
-            {"role": "system", "content": PROMPT},
-            {"role": "user", "content": [{"type": "text", "text": "Classify this waste item."},
-                                          {"type": "image_url", "image_url": {"url": url}}]},
-        ],
+        "systemInstruction": {"parts": [{"text": PROMPT}]},
+        "contents": [{"role": "user", "parts": [
+            {"text": "Identify the physical object in this photo. Do not choose a waste category."},
+            {"inlineData": {"mimeType": mime, "data": base64.b64encode(image_bytes).decode("ascii")}},
+        ]}],
+        "generationConfig": {"responseMimeType": "application/json", "temperature": 0},
     }
-    headers = {"Authorization": f"Bearer {AI_API_KEY}"}
+    headers = {"x-goog-api-key": AI_API_KEY, "Content-Type": "application/json"}
+    endpoint = gemini_endpoint()
     try:
         with httpx.Client(timeout=90) as client:
-            r = client.post(f"{AI_BASE_URL}/chat/completions", json=body, headers=headers)
-    except httpx.HTTPError as e:
-        raise HTTPException(502, f"Vision API unreachable: {type(e).__name__}")
-    if r.status_code in (402, 429):
-        raise HTTPException(r.status_code, "AI usage limit reached. Try again later.")
+            r = client.post(endpoint, json=body, headers=headers)
+    except httpx.TimeoutException:
+        raise HTTPException(504, "Gemini request timed out. Try again or use the browser model.") from None
+    except httpx.HTTPError:
+        raise HTTPException(502, "Gemini service is unreachable. Try again or use the browser model.") from None
     if r.status_code >= 400:
-        raise HTTPException(502, f"Vision API error ({r.status_code}).")
+        hint = "Check AI_MODEL and the native API endpoint." if r.status_code == 404 else "Check the API key and its permissions." if r.status_code in (401, 403) else "Try again later or use the browser model."
+        # Do not log/return upstream bodies, URLs or headers: they can contain secrets.
+        raise HTTPException(429 if r.status_code == 429 else 502, f"Gemini API error ({r.status_code}). {hint}")
 
-    text = (r.json().get("choices") or [{}])[0].get("message", {}).get("content") or ""
-    m = re.search(r"\{[\s\S]*\}", text)
-    if not m:
-        raise HTTPException(502, "Model did not return a classification.")
     try:
-        p = json.loads(m.group(0))
-        item = str(p["item"]).strip()[:150]
-        confidence = max(0, min(100, round(float(p["confidence"]))))
-        reasoning = str(p.get("reasoning", "Object identified from the image."))[:1500]
-    except (KeyError, ValueError, TypeError):
-        raise HTTPException(502, "Model returned malformed output.")
+        response = r.json()
+        candidate = response["candidates"][0]
+        if candidate.get("finishReason", "STOP") != "STOP":
+            raise ValueError("Incomplete answer")
+        text = "".join(part.get("text", "") for part in candidate["content"]["parts"] if not part.get("thought"))
+        p = json.loads(text)
+        item = p["item"]
+        score = p["confidence"]
+        reasoning = p.get("reasoning", "Object identified from the image.")
+        if not isinstance(item, str) or not item.strip() or len(item) > 150:
+            raise ValueError("Invalid item")
+        if isinstance(score, bool) or not isinstance(score, (int, float)) or not math.isfinite(score) or not 0 <= score <= 100:
+            raise ValueError("Invalid confidence")
+        if not isinstance(reasoning, str) or not reasoning.strip() or len(reasoning) > 1500:
+            raise ValueError("Invalid explanation")
+        item = item.strip()
+        confidence = round(score)
+    except (KeyError, ValueError, TypeError, IndexError, AttributeError):
+        raise HTTPException(502, "Gemini returned invalid or incomplete JSON. No classification was saved.") from None
 
     category = map_object_to_category(item)
 
@@ -181,7 +208,7 @@ def predict_gateway(image_bytes: bytes, mime: str) -> dict:
         "steps": DISPOSAL_STEPS[category],
         "bin": BINS[category],
         "warnings": safety_for(category, item),
-        "engine": "gemini-vision"
+        "engine": f"gemini-vision:{gemini_endpoint().split('/models/')[1].split(':')[0]}"
     }
 
 
@@ -195,7 +222,7 @@ def health():
                 "trained_at": config.get("trained_at")}
     return {"status": "ok", "engine": engine_name(),
             "local_model": model is not None, "local_model_info": info,
-            "gateway_fallback_configured": bool(AI_API_KEY),
+            "gemini_configured": bool(AI_API_KEY),
             "auth_required": not (ALLOW_UNAUTHENTICATED and not CLASSIFIER_API_KEY),
             "uncertain_threshold": UNCERTAIN_THRESHOLD}
 
@@ -209,6 +236,16 @@ async def classify(file: UploadFile = File(...), x_classifier_key: str | None = 
     mime = sniff(data)
     if not data or mime not in ALLOWED:
         raise HTTPException(415, "Upload a JPEG, PNG or WebP image.")
+
+    try:
+        with Image.open(io.BytesIO(data)) as decoded:
+            if decoded.width < 32 or decoded.height < 32:
+                raise HTTPException(422, "Image is too small to classify (min 32x32 px).")
+            decoded.verify()
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(415, "Image could not be decoded safely.") from None
 
     if get_local()[0] is not None:
         return predict_local(data, mime)

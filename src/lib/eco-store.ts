@@ -1,4 +1,4 @@
-import { BROWSER_SOURCE, type ScanResult, type StoredCategory } from "./scan-schema";
+import { BROWSER_SOURCE, GEMINI_SOURCE, type ScanResult, type StoredCategory } from "./scan-schema";
 
 export type VerifiedCategory = Exclude<StoredCategory, "uncertain"> | "unsure";
 export type Scan = ScanResult & { id: string; image: string; createdAt: number; verifiedCategory: VerifiedCategory | null; feedback: string | null; provenance?: string };
@@ -17,7 +17,7 @@ const cats: StoredCategory[] = ["organic", "recyclable", "hazardous", "ewaste", 
 /** Converts a database row into a UI scan, dropping malformed rows instead of crashing. */
 export function rowToScan(r: ScanRow): Scan | null {
   if (!cats.includes(r.category as StoredCategory)) return null;
-  const source = r.source === BROWSER_SOURCE ? BROWSER_SOURCE : r.source === "gateway" ? "gateway" : r.source === "python" ? "python" : null;
+  const source = r.source === BROWSER_SOURCE ? BROWSER_SOURCE : r.source === GEMINI_SOURCE ? GEMINI_SOURCE : r.source === "gateway" ? "gateway" : r.source === "python" ? "python" : null;
   if (!source || (source === BROWSER_SOURCE && r.provenance !== "client-reported")) return null;
   const steps = Array.isArray(r.steps) ? r.steps.filter((s): s is string => typeof s === "string") : [];
   return {
