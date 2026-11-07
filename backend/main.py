@@ -1,12 +1,12 @@
-"""EcoLens AI — Python FastAPI classification service.
+﻿"""EcoLens AI â€” Python FastAPI classification service.
 
 POST /classify (multipart "file") -> {item, category, confidence, reasoning, steps, bin}
 
 Engine order:
 1. Local PyTorch model (MobileNetV3-Small trained via prepare_dataset.py +
-   train.py) when backend/models/best.pt + config.json exist — genuine local
+   train.py) when backend/models/best.pt + config.json exist â€” genuine local
    inference, no external API.
-2. Vision-model fallback through an OpenAI-compatible Chat Completions API —
+2. Vision-model fallback through an OpenAI-compatible Chat Completions API â€”
    used ONLY when explicitly configured with AI_API_KEY (e.g. the Lovable AI
    Gateway). Not a silent substitute: /health reports which engine is active.
 
@@ -36,10 +36,13 @@ ALLOW_UNAUTHENTICATED = os.getenv("ALLOW_UNAUTHENTICATED", "") == "1"  # local d
 AI_MODEL = os.getenv("AI_MODEL", "google/gemini-3-flash-preview")
 MODELS_DIR = Path(os.getenv("ML_MODEL_DIR", Path(__file__).parent / "models"))
 PROMPT = (
-    "You are a waste segregation expert. Classify the single main waste item in the image into one of: "
-    "organic, recyclable, hazardous, ewaste, residual, or uncertain (blurry, no waste item, mixed items). "
-    "confidence = your honest probability 0-100. Reply with ONLY JSON: "
-    '{"item": str, "category": str, "confidence": number, "reasoning": str, "steps": [str, ...3-5]}'
+    "You are an expert visual object identification system for waste segregation. "
+    "Identify the single main physical object visible in the image. "
+    "Return its specific common name, such as charger, electrical switch, fan, adapter, cable, battery, plastic bottle, paper, glass bottle, food scraps, or cardboard. "
+    "Do not guess when the object is unclear, blurry, hidden, or multiple unrelated objects are present. "
+    "Do not decide the waste category. The backend will determine the category using fixed rules. "
+    "Return ONLY JSON: "
+    '{"item": "specific object name", "confidence": 0-100, "reasoning": "short visual explanation"}'
 )
 
 app = FastAPI(title="EcoLens AI Classifier", version="2.0.0")
@@ -112,6 +115,23 @@ def predict_local(image_bytes: bytes, mime: str) -> dict:
     }
 
 
+def map_object_to_category(item: str) -> str:
+    """Map Gemini-identified object names to fixed waste categories."""
+    name = item.lower().strip()
+
+    if any(word in name for word in ["charger", "fan", "electrical switch", "switch", "adapter", "cable", "wire", "circuit board", "circuit", "phone", "mobile", "computer", "keyboard", "mouse", "electronic", "earphone", "headphone", "remote", "motor"]):
+        return "ewaste"
+    elif any(word in name for word in ["battery", "cell battery", "lithium cell"]):
+        return "hazardous"
+    elif any(word in name for word in ["plastic bottle", "plastic container", "paper", "cardboard", "glass bottle", "glass jar", "metal can", "aluminium can", "tin can"]):
+        return "recyclable"
+    elif any(word in name for word in ["food scraps", "vegetable peels", "fruit peels", "food waste", "leaves", "garden waste"]):
+        return "organic"
+    elif any(word in name for word in ["chip wrapper", "biscuit wrapper", "plastic wrapper", "soiled tissue", "used tissue", "thermocol"]):
+        return "residual"
+    else:
+        return "uncertain"
+
 def predict_gateway(image_bytes: bytes, mime: str) -> dict:
     url = f"data:{mime};base64,{base64.b64encode(image_bytes).decode()}"
     body = {
@@ -139,20 +159,30 @@ def predict_gateway(image_bytes: bytes, mime: str) -> dict:
         raise HTTPException(502, "Model did not return a classification.")
     try:
         p = json.loads(m.group(0))
-        category = str(p["category"]).lower()
+        item = str(p["item"]).strip()[:150]
         confidence = max(0, min(100, round(float(p["confidence"]))))
-        item, reasoning = str(p["item"])[:150], str(p["reasoning"])[:1500]
-        steps = [str(s)[:500] for s in p.get("steps", [])][:6]
+        reasoning = str(p.get("reasoning", "Object identified from the image."))[:1500]
     except (KeyError, ValueError, TypeError):
         raise HTTPException(502, "Model returned malformed output.")
-    if category not in CATEGORIES:
-        raise HTTPException(502, "Model returned an unknown category.")
+
+    category = map_object_to_category(item)
+
     if confidence < UNCERTAIN_THRESHOLD:
         category = "uncertain"
-    return {"item": item, "category": category, "confidence": confidence,
-            "reasoning": reasoning, "steps": steps or DISPOSAL_STEPS[category],
-            "bin": BINS[category], "warnings": safety_for(category, item),
-            "engine": engine_name()}
+
+    if category == "uncertain":
+        reasoning = "The object could not be identified confidently or matched to a supported waste category."
+
+    return {
+        "item": item,
+        "category": category,
+        "confidence": confidence,
+        "reasoning": reasoning,
+        "steps": DISPOSAL_STEPS[category],
+        "bin": BINS[category],
+        "warnings": safety_for(category, item),
+        "engine": "gemini-vision"
+    }
 
 
 @app.get("/health")
@@ -180,9 +210,12 @@ async def classify(file: UploadFile = File(...), x_classifier_key: str | None = 
     if not data or mime not in ALLOWED:
         raise HTTPException(415, "Upload a JPEG, PNG or WebP image.")
 
-    model, _ = get_local()
-    if model is not None:
-        return predict_local(data, mime)
     if AI_API_KEY:
         return predict_gateway(data, mime)
-    raise HTTPException(503, "No classification engine available: train the local model or configure AI_API_KEY.")
+    if get_local()[0] is not None:
+        return predict_local(data, mime)
+    raise HTTPException(503, "No classification engine available: configure AI_API_KEY or train the local model.")
+
+
+
+
