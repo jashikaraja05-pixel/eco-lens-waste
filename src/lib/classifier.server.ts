@@ -58,12 +58,15 @@ export async function classifyImage(
   },
   engine?: "gateway"
 ): Promise<ScanResult> {
-  if (env.pythonUrl) {
+  if (engine === "gateway") {
+    if (!env.pythonUrl) {
+      throw new Error("Gemini Python classifier service is not configured.");
+    }
     return viaPython(env.pythonUrl, image, env.pythonApiKey);
   }
 
-  if (engine === "gateway" && env.lovableApiKey) {
-    return viaGateway(env.lovableApiKey, image);
+  if (env.pythonUrl) {
+    return viaPython(env.pythonUrl, image, env.pythonApiKey);
   }
 
   if (env.lovableApiKey) {
@@ -72,3 +75,4 @@ export async function classifyImage(
 
   throw new Error("AI classification is not configured.");
 }
+
