@@ -17,3 +17,5 @@
 - Bin text, per-result safety notes (`safetyFor`) and the uncertainty threshold are owned by scan-schema.ts; the Python service in `backend/` mirrors them in common.py and is used when `PYTHON_CLASSIFIER_URL` is set.
 - Keep the React interface in one route file.
 - Browser predictions run centre, mirrored and padded views; disagreement or low view confidence (stricter for paper/plastic/glass look-alikes) forces Uncertain, and saves carry that flag so the server stores Uncertain too.
+- Main classification calls the existing Render Gemini service; browser MobileNet is an explicit fallback, never an automatic substitute, to preserve truthful engine provenance.
+- Gemini identifies objects through official generateContent REST; Python alone maps category/bin/guidance so external output cannot invent disposal rules. Store new Gemini results with distinct source; never relabel historical Gateway/Python rows.

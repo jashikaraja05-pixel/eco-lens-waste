@@ -66,7 +66,7 @@ async def main():
             assert await scans(page) == []
             await navigate(page, "Scan Waste")
             await page.set_input_files('input[type=file]', str(image_path))
-            await page.get_by_role("button", name="Analyze Waste", exact=True).click()
+            await page.get_by_role("button", name="Use Browser MobileNet", exact=True).click()
             await page.get_by_role("button", name="Save Scan", exact=True).wait_for()
             assert await scans(page) == []
             detected = await page.locator("main h2").inner_text()
@@ -168,7 +168,7 @@ async def main():
             await page.set_viewport_size({"width": 880, "height": 715})
             await navigate(page, "Scan Waste")
             await page.set_input_files('input[type=file]', str(image_path))
-            await page.get_by_role("button", name="Analyze Waste", exact=True).click()
+            await page.get_by_role("button", name="Use Browser MobileNet", exact=True).click()
             await page.get_by_role("button", name="Save Scan", exact=True).wait_for()
             await page.get_by_role("button", name="Save Scan", exact=True).click()
             await page.get_by_text("Saved to history", exact=True).wait_for()
@@ -179,9 +179,10 @@ async def main():
             await page.get_by_role("tab", name="Use Camera", exact=True).click()
             await page.get_by_role("button", name="Start camera", exact=False).click()
             await page.get_by_role("button", name="Capture Photo", exact=True).wait_for()
-            await page.wait_for_timeout(1000)
+            await page.wait_for_function("() => { const video = document.querySelector('video'); return video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0; }")
             await page.get_by_role("button", name="Capture Photo", exact=True).click()
-            await page.get_by_role("button", name="Analyze Waste", exact=True).click()
+            await page.get_by_role("img", name="Waste item preview", exact=True).wait_for()
+            await page.get_by_role("button", name="Use Browser MobileNet", exact=True).click()
             await page.get_by_role("button", name="Save Scan", exact=True).wait_for()
             await page.get_by_role("button", name="Save Scan", exact=True).click()
             await page.get_by_text("Saved to history", exact=True).wait_for()
@@ -189,30 +190,54 @@ async def main():
             await page.get_by_text("Saved to history", exact=True).scroll_into_view_if_needed()
             await page.screenshot(path=str(OUTPUT / "saved-camera-mobile.png"))
             report["camera_predict_save_and_mobile_layout"] = True
-            # Explicit Gateway still runs and saves a separate Gateway source.
+            # Main action really calls existing Render. Never fabricate a passing live test.
             await page.get_by_role("button", name="New Scan", exact=True).click()
             await page.get_by_role("tab", name="Upload Photo", exact=True).click()
-            await page.set_input_files('input[type=file]', str(image_path))
-            await page.get_by_role("button", name="Use Lovable AI Gateway", exact=True).click()
-            await page.get_by_text("Saved to history", exact=True).wait_for(timeout=120000)
-            await page.get_by_text("Engine: Lovable AI Gateway", exact=True).wait_for()
+            switch_path = Path(__file__).resolve().parents[1] / "src/test/fixtures/images/switch-board.jpg"
+            await page.set_input_files('input[type=file]', str(switch_path))
+            before_render = await scans(page)
+            await page.get_by_role("button", name="Analyze Waste", exact=True).click()
+            await page.get_by_text("Saved to history", exact=True).or_(page.get_by_text("Analysis failed", exact=True)).wait_for(timeout=150000)
             final_rows = await scans(page)
-            assert any(row["source"] == "gateway" and row["provenance"] == "server-classified" for row in final_rows)
+            if await page.get_by_text("Analysis failed", exact=True).count():
+                assert len(final_rows) == len(before_render)
+                assert await page.get_by_text("No result was saved.", exact=True).is_visible()
+                assert await page.get_by_role("button", name="Use Browser MobileNet", exact=True).is_enabled()
+                report["live_render_switch_flow"] = "BLOCKED: existing Render service returned a classification error; no scan inserted and explicit browser fallback available"
+                if await page.get_by_text("Gemini API error (404). Check the Render Gemini model and API settings.", exact=True).count():
+                    report["live_render_error"] = "Gemini API error (404)"
+                await page.get_by_text("Analysis failed", exact=True).scroll_into_view_if_needed()
+                await page.screenshot(path=str(OUTPUT / "render-failure-mobile.png"))
+            else:
+                added = [row for row in final_rows if row["id"] not in {old["id"] for old in before_render}]
+                assert len(added) == 1
+                assert added[0]["source"] == "Google Gemini (Render)" and added[0]["category"] == "ewaste"
+                assert added[0]["provenance"] == "server-classified" and added[0]["user_id"] == accounts[0]["id"]
+                await page.get_by_text("Engine: Google Gemini (Render)", exact=True).wait_for()
+                await navigate(page, "History")
+                await page.get_by_role("heading", name=added[0]["item"], exact=True).wait_for()
+                await page.reload(wait_until="networkidle")
+                await navigate(page, "History")
+                assert any(row["id"] == added[0]["id"] for row in await scans(page))
+                await navigate(page, "Dashboard")
+                await page.get_by_role("heading", name="Dashboard", exact=True).wait_for()
+                report["live_render_switch_flow"] = "PASS: real Gemini electrical-switch classification saved and retrieved through history/dashboard"
             assert sum(row["source"] == SOURCE for row in final_rows) == 3
-            report["explicit_gateway_preserved_and_separately_labelled"] = True
             await page.reload(wait_until="networkidle")
             await navigate(page, "Scan Waste")
             await page.route("**/models/mobilenet-v3-small.json", lambda route: route.fulfill(status=503, body="Unavailable"))
             await page.set_input_files('input[type=file]', str(image_path))
-            await page.get_by_role("button", name="Analyze Waste", exact=True).click()
+            await page.get_by_role("button", name="Use Browser MobileNet", exact=True).click()
             await page.get_by_text("Analysis failed", exact=True).wait_for()
             assert len(await scans(page)) == len(final_rows)
-            assert await page.get_by_role("button", name="Use Lovable AI Gateway", exact=True).is_enabled()
-            report["model_failure_no_auto_fallback_gateway_available"] = True
+            assert await page.get_by_role("button", name="Analyze Waste", exact=True).is_enabled()
+            report["model_failure_no_auto_fallback_gemini_available"] = True
             report["runtime_errors"] = runtime_errors
             await browser.close()
         (OUTPUT / "flow-results.json").write_text(json.dumps(report, indent=2))
         print(json.dumps(report, indent=2))
+        if str(report.get("live_render_switch_flow", "")).startswith("BLOCKED"):
+            raise RuntimeError("Browser fallback/security checks passed, but live Gemini switch saving is blocked: redeploy the existing Render service and verify its model/API settings.")
     finally:
         for account in accounts:
             requests.delete(url + "/rest/v1/scans", headers=headers, params={"user_id": "eq." + account["id"]}, timeout=30).raise_for_status()

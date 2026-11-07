@@ -1,4 +1,8 @@
 # EcoLens GP-05 hackathon improvements
+- [x] Repair existing Render Gemini request, safe errors and deterministic object mapping without replacing MobileNet
+- [x] Make Render Gemini the main scanner action, preserving explicit browser fallback and historical engine labels
+- [x] Run 70 frontend/67 Python tests, syntax check and automatic build; verify signed-in browser fallback/camera/saving/history/dashboard and two-account isolation; document deployment steps
+- [ ] Verify real Gemini electrical-switch → E-Waste → saved history/dashboard — blocked by existing Render still returning Gemini HTTP 404; requires redeploy and checking its Google key/base URL/model availability
 - [x] Secure Cloud auth + per-user scans database
 - [x] Python FastAPI classifier + optional app connection
 - [x] Uncertain category, error states, dashboard breakdown + recent scans

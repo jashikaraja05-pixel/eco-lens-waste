@@ -20,7 +20,14 @@ export const wasteCategories = ["organic", "recyclable", "hazardous", "ewaste", 
 export type WasteCategory = (typeof wasteCategories)[number];
 export type StoredCategory = WasteCategory | "uncertain";
 export const BROWSER_SOURCE = "MobileNetV3-Small (ONNX Browser)" as const;
-export type ScanSource = "gateway" | "python" | typeof BROWSER_SOURCE;
+export const GEMINI_SOURCE = "Google Gemini (Render)" as const;
+export type ScanSource = "gateway" | "python" | typeof BROWSER_SOURCE | typeof GEMINI_SOURCE;
+
+export function engineLabel(source: ScanSource | "mobilenet-browser"): string {
+  if (source === "mobilenet-browser" || source === BROWSER_SOURCE) return BROWSER_SOURCE;
+  if (source === GEMINI_SOURCE) return GEMINI_SOURCE;
+  return source === "gateway" ? "Lovable AI Gateway" : "Python classifier service — underlying engine not recorded";
+}
 
 export const recommendedBins: Record<StoredCategory, string> = {
   organic: "Green Bin (Organic / Wet Waste)",

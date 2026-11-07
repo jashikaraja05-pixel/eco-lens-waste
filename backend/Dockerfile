@@ -7,7 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Trained weights are baked in only if you copy backend/models into the build
-# context; otherwise the service runs with the configured gateway fallback.
+# context; Gemini is primary when AI_API_KEY is configured. No silent fallback.
 ENV ML_MODEL_DIR=/app/models
 
 EXPOSE 8000
