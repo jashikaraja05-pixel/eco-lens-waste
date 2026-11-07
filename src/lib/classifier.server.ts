@@ -49,12 +49,26 @@ export async function viaGateway(apiKey: string, image: string): Promise<ScanRes
  * Routes to the Python service when its URL is configured, otherwise the built-in gateway.
  * No fallback: a Python failure is surfaced to the user, never silently replaced.
  */
-export async function classifyImage(image: string, env: { pythonUrl?: string | undefined; pythonApiKey?: string | undefined; lovableApiKey?: string | undefined }, engine?: "gateway"): Promise<ScanResult> {
-  if (engine === "gateway") {
-    if (!env.lovableApiKey) throw new Error("Lovable AI Gateway is not configured.");
+export async function classifyImage(
+  image: string,
+  env: {
+    pythonUrl?: string | undefined;
+    pythonApiKey?: string | undefined;
+    lovableApiKey?: string | undefined;
+  },
+  engine?: "gateway"
+): Promise<ScanResult> {
+  if (env.pythonUrl) {
+    return viaPython(env.pythonUrl, image, env.pythonApiKey);
+  }
+
+  if (engine === "gateway" && env.lovableApiKey) {
     return viaGateway(env.lovableApiKey, image);
   }
-  if (env.pythonUrl) return viaPython(env.pythonUrl, image, env.pythonApiKey);
-  if (env.lovableApiKey) return viaGateway(env.lovableApiKey, image);
+
+  if (env.lovableApiKey) {
+    return viaGateway(env.lovableApiKey, image);
+  }
+
   throw new Error("AI classification is not configured.");
 }
