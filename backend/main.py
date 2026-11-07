@@ -1,4 +1,4 @@
-﻿"""EcoLens AI â€” Python FastAPI classification service.
+"""EcoLens AI â€” Python FastAPI classification service.
 
 POST /classify (multipart "file") -> {item, category, confidence, reasoning, steps, bin}
 
@@ -210,8 +210,6 @@ async def classify(file: UploadFile = File(...), x_classifier_key: str | None = 
     if not data or mime not in ALLOWED:
         raise HTTPException(415, "Upload a JPEG, PNG or WebP image.")
 
-    if AI_API_KEY:
-        return predict_gateway(data, mime)
     if get_local()[0] is not None:
         return predict_local(data, mime)
     raise HTTPException(503, "No classification engine available: configure AI_API_KEY or train the local model.")
