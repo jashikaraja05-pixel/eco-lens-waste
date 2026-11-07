@@ -587,7 +587,7 @@ function Scanner({ onSaved }: { onSaved: (s: Scan) => void }) {
               </>
             )}
             {image && !result && !localResult && (
-              <Button className="glow h-12 flex-1 rounded-xl text-base" onClick={() => void analyze("local")} disabled={loading}>
+              <Button className="glow h-12 flex-1 rounded-xl text-base" onClick={() => void analyze("online")} disabled={loading}>
                 {loading ? <Loader2 className="size-5 animate-spin" /> : <Sparkles className="size-5" />} {loading ? "Analyzing…" : "Analyze Waste"}
               </Button>
             )}
