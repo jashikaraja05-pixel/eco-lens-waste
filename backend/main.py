@@ -142,7 +142,7 @@ def predict_gateway(image_bytes: bytes, mime: str) -> dict:
                                           {"type": "image_url", "image_url": {"url": url}}]},
         ],
     }
-    headers = {"Authorization": f"Bearer {AI_API_KEY}", "Lovable-API-Key": AI_API_KEY, "X-Lovable-AIG-SDK": "fetch"}
+    headers = {"Authorization": f"Bearer {AI_API_KEY}"}
     try:
         with httpx.Client(timeout=90) as client:
             r = client.post(f"{AI_BASE_URL}/chat/completions", json=body, headers=headers)
@@ -215,6 +215,7 @@ async def classify(file: UploadFile = File(...), x_classifier_key: str | None = 
     if get_local()[0] is not None:
         return predict_local(data, mime)
     raise HTTPException(503, "No classification engine available: configure AI_API_KEY or train the local model.")
+
 
 
 
